@@ -138,3 +138,13 @@ impl RectPrism {
             && (min.z..=max.z).contains(&p.z)
     }
 }
+
+pub fn modulus<T, M>(a: T, m: M) -> <<<T as Rem<M>>::Output as Add<M>>::Output as Rem<M>>::Output
+where
+    M: Copy,
+    T: Rem<M>,
+    <T as Rem<M>>::Output: Add<M>,
+    <<T as Rem<M>>::Output as Add<M>>::Output: Rem<M>,
+{
+    (a % m + m) % m
+}

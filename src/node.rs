@@ -1,16 +1,23 @@
-use std::f64::consts::{PI, TAU};
+use std::{
+    f64::consts::{PI, TAU},
+    sync::Arc,
+};
 
 use hodaun::{Mono, Shared, Source};
 
-use crate::vector::Vector;
+use crate::vector::{modulus, Vector};
 
+#[derive(Clone)]
 pub enum Node {
     Wave(Wave3),
-    Synth(Box<dyn Fn(Vector) -> f64 + Send + Sync>),
+    Synth(Arc<dyn Fn(Vector) -> f64 + Send + Sync>),
     Envelope(Enveloped),
 }
 
 impl Node {
+    pub fn synth(synth: impl Fn(Vector) -> f64 + Send + Sync + 'static) -> Self {
+        Self::Synth(Arc::new(synth))
+    }
     fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
         match self {
             Node::Wave(wave) => {
@@ -28,7 +35,7 @@ impl Node {
     }
     pub fn envelope(self, envelope: impl Fn(Vector) -> f64 + Send + Sync + 'static) -> Self {
         Self::Envelope(Enveloped {
-            envelope: Box::new(envelope),
+            envelope: Arc::new(envelope),
             node: Box::new(self),
         })
     }
@@ -37,8 +44,9 @@ impl Node {
     }
 }
 
+#[derive(Clone)]
 pub struct Wave3 {
-    pub one_hz: Box<dyn Fn(Vector) -> f64 + Send + Sync>,
+    pub one_hz: Arc<dyn Fn(Vector) -> f64 + Send + Sync>,
     pub freq: f64,
     pub pos: Vector,
 }
@@ -46,15 +54,16 @@ pub struct Wave3 {
 impl Wave3 {
     pub fn new(freq: f64, one_hz: impl Fn(Vector) -> f64 + Send + Sync + 'static) -> Self {
         Self {
-            one_hz: Box::new(one_hz),
+            one_hz: Arc::new(one_hz),
             freq,
             pos: Vector::ZERO,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Enveloped {
-    pub envelope: Box<dyn Fn(Vector) -> f64 + Send + Sync>,
+    pub envelope: Arc<dyn Fn(Vector) -> f64 + Send + Sync>,
     pub node: Box<Node>,
 }
 
@@ -91,10 +100,6 @@ pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
 
 pub fn kick_wave(time: f64, freq: f64, falloff: f64, period: f64) -> f64 {
     ((time % period).powf(falloff) * freq * TAU).sin()
-}
-
-pub fn modulus(a: f64, m: f64) -> f64 {
-    (a % m + m) % m
 }
 
 pub fn switch2(time: f64, period: f64, a: impl Fn(f64) -> f64, b: impl Fn(f64) -> f64) -> f64 {
