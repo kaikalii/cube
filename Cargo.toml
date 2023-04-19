@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "cube"
+version = "0.1.0"
+
+[dependencies]
+parking_lot = "0.12.1"
+
+[dependencies.hodaun]
+features = ["notes", "output", "noise"]
+version = "0.1.0"
