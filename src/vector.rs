@@ -14,8 +14,14 @@ impl<T> Vector<T> {
     pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Vector<U> {
+        Vector::new(f(self.x), f(self.y), f(self.z))
+    }
     pub fn with<U, V>(self, other: Vector<U>, mut f: impl FnMut(T, U) -> V) -> Vector<V> {
         Vector::new(f(self.x, other.x), f(self.y, other.y), f(self.z, other.z))
+    }
+    pub fn zip<U>(self, other: Vector<U>) -> Vector<(T, U)> {
+        self.with(other, |a, b| (a, b))
     }
 }
 
@@ -108,20 +114,20 @@ impl Neg for Vector {
 }
 
 pub struct RectPrism {
-    pub tlb: Vector,
+    pub tlf: Vector,
     pub size: Vector,
 }
 
 impl RectPrism {
     pub fn from_min_max(min: Vector, max: Vector) -> Self {
         Self {
-            tlb: min,
+            tlf: min,
             size: max - min,
         }
     }
     pub fn contains(&self, p: Vector) -> bool {
-        let min = self.tlb;
-        let max = self.tlb + self.size;
+        let min = self.tlf;
+        let max = self.tlf + self.size;
         (min.x..=max.x).contains(&p.x)
             && (min.y..=max.y).contains(&p.y)
             && (min.z..=max.z).contains(&p.z)
