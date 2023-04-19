@@ -6,6 +6,7 @@ use crate::vector::Vector;
 
 pub enum Node {
     Wave(Wave3),
+    Synth(Box<dyn Fn(Vector) -> f64 + Send + Sync>),
     Envelope(Enveloped),
 }
 
@@ -17,6 +18,7 @@ impl Node {
                 wave.pos += dir * (wave.freq / sample_rate);
                 Vector::X * sample
             }
+            Node::Synth(synth) => Vector::X * (synth)(pos),
             Node::Envelope(adsr) => {
                 let sample = adsr.node.sample(sample_rate, pos, dir);
                 let amp = (adsr.envelope)(pos);
@@ -85,6 +87,10 @@ pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
         sum += (n * k).sin() / n.powi(2) * sign;
     }
     sum * 8.0 / PI.powi(2)
+}
+
+pub fn kick_wave(time: f64, freq: f64, falloff: f64, period: f64) -> f64 {
+    ((time % period).powf(falloff) * freq * TAU).sin()
 }
 
 pub fn modulus(a: f64, m: f64) -> f64 {

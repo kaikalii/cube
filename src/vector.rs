@@ -109,6 +109,7 @@ bin_op!(Add, add, AddAssign, add_assign);
 bin_op!(Sub, sub, SubAssign, sub_assign);
 bin_op!(Mul, mul, MulAssign, mul_assign);
 bin_op!(Div, div, DivAssign, div_assign);
+bin_op!(Rem, rem, RemAssign, rem_assign);
 
 impl Neg for Vector {
     type Output = Self;
