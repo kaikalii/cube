@@ -2,26 +2,39 @@
 
 use std::ops::*;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Vector {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Vector<T = f64> {
+    pub x: T,
+    pub y: T,
+    pub z: T,
+}
+
+impl<T> Vector<T> {
+    #[inline]
+    pub const fn new(x: T, y: T, z: T) -> Self {
+        Self { x, y, z }
+    }
+    pub fn with<U, V>(self, other: Vector<U>, mut f: impl FnMut(T, U) -> V) -> Vector<V> {
+        Vector::new(f(self.x, other.x), f(self.y, other.y), f(self.z, other.z))
+    }
+}
+
+impl<T: Clone> Vector<T> {
+    #[inline]
+    pub fn splat(v: T) -> Self {
+        Self {
+            x: v.clone(),
+            y: v.clone(),
+            z: v,
+        }
+    }
 }
 
 impl Vector {
-    pub const ZERO: Self = Self::splat(0.0);
+    pub const ZERO: Self = Self::new(0.0, 0.0, 0.0);
     pub const X: Self = Self::new(1.0, 0.0, 0.0);
     pub const Y: Self = Self::new(0.0, 1.0, 0.0);
     pub const Z: Self = Self::new(0.0, 0.0, 1.0);
-    #[inline]
-    pub const fn new(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z }
-    }
-    #[inline]
-    pub const fn splat(v: f64) -> Self {
-        Self { x: v, y: v, z: v }
-    }
     pub fn length(self) -> f64 {
         self.length_squared().sqrt()
     }
