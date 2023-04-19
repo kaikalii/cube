@@ -1,6 +1,8 @@
+use std::f64::consts::{PI, TAU};
+
 use hodaun::{Mono, Shared, Source};
 
-use crate::vector::{RectPrism, Vector};
+use crate::vector::Vector;
 
 pub enum Node {
     Wave(Wave3),
@@ -17,23 +19,19 @@ impl Node {
             }
             Node::Envelope(adsr) => {
                 let sample = adsr.node.sample(sample_rate, pos, dir);
-                let amp = adsr
-                    .rect
-                    .tlf
-                    .zip(adsr.rect.size)
-                    .zip(pos)
-                    .zip(adsr.envelope)
-                    .map(|(((start, length), pos), env)| env.amplitude(start, length, pos));
+                let amp = (adsr.envelope)(pos);
                 sample * amp
             }
         }
     }
-    pub fn envolope(self, rect: RectPrism, envelope: Vector<BiEnvelope>) -> Self {
+    pub fn envelope(self, envelope: impl Fn(Vector) -> f64 + Send + Sync + 'static) -> Self {
         Self::Envelope(Enveloped {
-            envelope,
-            rect,
+            envelope: Box::new(envelope),
             node: Box::new(self),
         })
+    }
+    pub fn amplify(self, amp: f64) -> Self {
+        self.envelope(move |_| amp)
     }
 }
 
@@ -53,65 +51,42 @@ impl Wave3 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct BiEnvelope {
-    pub front_attack: f64,
-    pub front_decay: f64,
-    pub sustain: f64,
-    pub back_attack: f64,
-    pub back_decay: f64,
-}
-
-impl BiEnvelope {
-    pub fn new(
-        front_attack: f64,
-        front_decay: f64,
-        sustain: f64,
-        back_attack: f64,
-        back_decay: f64,
-    ) -> Self {
-        Self {
-            front_attack,
-            front_decay,
-            sustain,
-            back_attack,
-            back_decay,
-        }
-    }
-    pub fn symmetric(attack: f64, decay: f64, sustain: f64) -> Self {
-        Self::new(attack, decay, sustain, attack, decay)
-    }
-    pub fn amplitude(&self, start: f64, length: f64, pos: f64) -> f64 {
-        if pos < start {
-            0.0
-        } else {
-            let attack_start = start + self.front_attack;
-            if pos < attack_start {
-                (pos - start) / self.front_attack
-            } else if pos < attack_start + self.front_decay {
-                (1.0 - (pos - start - self.front_attack) / self.front_decay) * (1.0 - self.sustain)
-                    + self.sustain
-            } else {
-                let end = start + length;
-                if pos < end - self.back_attack - self.back_decay {
-                    self.sustain
-                } else if pos < end - self.back_attack {
-                    (1.0 - (end - self.back_attack - pos) / self.back_decay) * (1.0 - self.sustain)
-                        + self.sustain
-                } else if pos < end {
-                    1.0 - (pos - end + self.back_attack) / self.back_attack
-                } else {
-                    0.0
-                }
-            }
-        }
-    }
-}
-
 pub struct Enveloped {
-    pub envelope: Vector<BiEnvelope>,
-    pub rect: RectPrism,
+    pub envelope: Box<dyn Fn(Vector) -> f64 + Send + Sync>,
     pub node: Box<Node>,
+}
+
+pub fn true_square_wave(time: f64, n: usize) -> f64 {
+    let mut sum = 0.0;
+    let k = time * TAU;
+    for i in 1..=n {
+        let i = (i as f64).mul_add(2.0, -1.0);
+        sum += (i * k).sin() / i;
+    }
+    sum
+}
+
+pub fn true_saw_wave(time: f64, n: usize) -> f64 {
+    let mut sum = 0.0;
+    let k = time * TAU;
+    for i in 1..=n {
+        let i = i as f64;
+        sum += (i * k).sin() / i;
+    }
+    sum * 2.0 / PI
+}
+
+pub fn modulus(a: f64, m: f64) -> f64 {
+    (a % m + m) % m
+}
+
+pub fn switch2(time: f64, period: f64, a: impl Fn(f64) -> f64, b: impl Fn(f64) -> f64) -> f64 {
+    let part_period = period / 2.0;
+    if modulus(time, period) < part_period {
+        a(modulus(time, part_period))
+    } else {
+        b(modulus(time, part_period))
+    }
 }
 
 pub struct NodeSource {

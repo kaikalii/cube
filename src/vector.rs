@@ -23,6 +23,10 @@ impl<T> Vector<T> {
     pub fn zip<U>(self, other: Vector<U>) -> Vector<(T, U)> {
         self.with(other, |a, b| (a, b))
     }
+    pub fn reduce(self, mut f: impl FnMut(T, T) -> T) -> T {
+        let xy = f(self.x, self.y);
+        f(xy, self.z)
+    }
 }
 
 impl<T: Clone> Vector<T> {
