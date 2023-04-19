@@ -60,8 +60,8 @@ pub fn true_square_wave(time: f64, n: usize) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
     for i in 1..=n {
-        let i = (i as f64).mul_add(2.0, -1.0);
-        sum += (i * k).sin() / i;
+        let n = (i as f64).mul_add(2.0, -1.0);
+        sum += (n * k).sin() / n;
     }
     sum
 }
@@ -70,10 +70,21 @@ pub fn true_saw_wave(time: f64, n: usize) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
     for i in 1..=n {
-        let i = i as f64;
-        sum += (i * k).sin() / i;
+        let n = i as f64;
+        sum += (n * k).sin() / n;
     }
     sum * 2.0 / PI
+}
+
+pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
+    let mut sum = 0.0;
+    let k = time * TAU;
+    for i in 1..=n {
+        let sign = if i % 2 == 0 { -1.0 } else { 1.0 };
+        let n = (i as f64).mul_add(2.0, -1.0);
+        sum += (n * k).sin() / n.powi(2) * sign;
+    }
+    sum * 8.0 / PI.powi(2)
 }
 
 pub fn modulus(a: f64, m: f64) -> f64 {
