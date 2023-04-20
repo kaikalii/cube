@@ -208,12 +208,15 @@ impl Parser {
                 }
             };
             let f_overrides = &BUILTINS[&f_name];
-            let f = f_overrides.get(&args.len()).ok_or_else(|| {
-                f_span.sp(ParseError::WrongNumberOfArguments {
-                    name: f_name,
-                    found: args.len(),
-                })
-            })?;
+            let (_, f) = f_overrides
+                .iter()
+                .find(|(args_n, _)| args_n.matches(args.len()))
+                .ok_or_else(|| {
+                    f_span.sp(ParseError::WrongNumberOfArguments {
+                        name: f_name,
+                        found: args.len(),
+                    })
+                })?;
             f(args, f_span)?
         }))
     }

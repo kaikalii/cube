@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     f64::consts::{E, PI, TAU},
 };
 
@@ -20,19 +20,41 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ArgCount {
+    Exact(usize),
+    AtLeast(usize),
+}
+
+impl ArgCount {
+    pub fn matches(&self, n: usize) -> bool {
+        match self {
+            ArgCount::Exact(n2) => n == *n2,
+            ArgCount::AtLeast(n2) => n >= *n2,
+        }
+    }
+}
+
 pub type BuiltinFn = dyn Fn(Vec<Value>, Span) -> ParseResult<Value> + Send + Sync;
 
-type BuiltinFnMap = HashMap<String, HashMap<usize, Box<BuiltinFn>>>;
+type BuiltinFnMap = HashMap<String, BTreeMap<ArgCount, Box<BuiltinFn>>>;
 
 macro_rules! build_map {
-    ($(($name:ident, $($span:ident,)? |$($arg:ident),* $(,)?| $body:expr)),* $(,)*) => {{
-        let mut map: BuiltinFnMap = HashMap::new();
+    ($(($name:ident, $($span:ident,)? |$($arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),* $(,)*) => {{
+        let mut map = BuiltinFnMap::new();
         $(
-            let arg_count = 0 $(+ { stringify!($arg); 1 })*;
+            let arg_count_n = 0 $(+ { stringify!($arg); 1 })*;
+            #[allow(unused_variables)]
+            let arg_count = ArgCount::Exact(arg_count_n);
+            $(let arg_count = {
+                stringify!($varargs);
+                ArgCount::AtLeast(arg_count_n)
+            };)?
             map.entry(stringify!($name).to_string()).or_default().insert(arg_count, Box::new(|args: Vec<Value>, _span: Span| {
                 let mut args = args.into_iter();
                 $(let $arg = args.next().unwrap();)*
                 $(let $span = _span;)?
+                $(let $varargs: Vec<_> = args.collect();)?
                 Ok($body.into())
             }));
         )*
@@ -54,18 +76,20 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
         (tri, |freq| Wave3::new("triangle", freq, |pos| {
             pos.map(|x| true_triangle_wave(x, 50))
         })),
-        (min, span, |a, b| a.bin_scalar_op(
-            b,
-            "min",
-            span,
-            f64::min
-        )?),
-        (max, span, |a, b| a.bin_scalar_op(
-            b,
-            "max",
-            span,
-            f64::max
-        )?),
+        (min, span, |a, (rest)| {
+            let mut min = a;
+            for b in rest {
+                min = min.bin_scalar_op(b, "min", span, f64::min)?;
+            }
+            min
+        }),
+        (max, span, |a, (rest)| {
+            let mut max = a;
+            for b in rest {
+                max = max.bin_scalar_op(b, "max", span, f64::max)?;
+            }
+            max
+        }),
         (pow, span, |a, b| a.bin_scalar_op(
             b,
             "pow",
