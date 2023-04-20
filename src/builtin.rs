@@ -97,6 +97,14 @@ macro_rules! make_builtin_fns {
     };
 }
 make_builtin_fns!(
+    (add, sp, |a, b| a
+        .bin_scalar_op(b, "add", sp, |a, b| a + b)?),
+    (sub, sp, |a, b| a
+        .bin_scalar_op(b, "sub", sp, |a, b| a - b)?),
+    (mul, sp, |a, b| a
+        .bin_scalar_op(b, "mul", sp, |a, b| a * b)?),
+    (div, sp, |a, b| a
+        .bin_scalar_op(b, "div", sp, |a, b| a / b)?),
     /// Generate a sine wave from a frequency
     (sin, |freq| Wave3::new("sine", freq, |pos| {
         pos.map(|x| (x * TAU).sin())
@@ -130,19 +138,9 @@ make_builtin_fns!(
         max
     }),
     /// Raise a value to a power
-    (pow, span, |a, b| a.bin_scalar_op(
-        b,
-        "pow",
-        span,
-        f64::powf
-    )?),
+    (pow, sp, |a, b| a.bin_scalar_op(b, "pow", sp, f64::powf)?),
     /// Get the logarithm of a value
-    (log, span, |a, b| a.bin_scalar_op(
-        b,
-        "log",
-        span,
-        f64::log
-    )?),
+    (log, sp, |a, b| a.bin_scalar_op(b, "log", sp, f64::log)?),
     /// Negate a value
     (neg, span, |x| x.un_scalar_op("neg", span, |x| -x)?),
     /// Get the absolute value of a value
