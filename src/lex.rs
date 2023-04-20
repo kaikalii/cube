@@ -14,6 +14,7 @@ pub enum Token {
     Equals,
     OpenParen,
     CloseParen,
+    Comma,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +44,7 @@ impl Lexer {
         while let Some(c) = self.next_char() {
             match c {
                 '=' => tokens.push(Token::Equals),
+                ',' => tokens.push(Token::Comma),
                 '(' => tokens.push(Token::OpenParen),
                 ')' => tokens.push(Token::CloseParen),
                 '+' => tokens.push(Token::BinOp(BinOp::Add)),

@@ -1,20 +1,31 @@
+mod builtin;
 mod lex;
 mod node;
 mod parse;
 mod vector;
 
+use std::fs;
+
 use hodaun::{Mix, Mono, OutputDeviceMixer};
-use node::{kick_wave, GenericNode, NodeSource};
+use node::NodeSource;
+use parse::parse;
 use vector::Vector;
 
 fn main() {
-    let mut output = OutputDeviceMixer::<Mono>::with_default_device().unwrap();
+    let input = fs::read_to_string("test.cube").unwrap();
+    match parse(&input) {
+        Ok(Some(root)) => {
+            println!("{root:?}");
 
-    let root = GenericNode::simple("kick", |pos| kick_wave(pos.x, 40.0, 0.5, 0.5));
+            let mut output = OutputDeviceMixer::<Mono>::with_default_device().unwrap();
 
-    let source = NodeSource::new(root, Vector::ZERO, Vector::new(1.0, 0.0, 0.0));
+            let source = NodeSource::new(root, Vector::ZERO, Vector::new(1.0, 0.0, 0.0));
 
-    output.add(source);
+            output.add(source);
 
-    output.play_blocking().unwrap();
+            output.play_blocking().unwrap();
+        }
+        Ok(None) => println!("No root node"),
+        Err(err) => println!("Parse error: {:?}", err),
+    }
 }

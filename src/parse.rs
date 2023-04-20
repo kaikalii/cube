@@ -1,23 +1,55 @@
 use std::{
     collections::HashMap,
+    fmt,
     ops::{Add, Div, Mul, Sub},
 };
 
 use crate::{
+    builtin::BUILTINS,
     lex::*,
-    node::{state_node, Node, NodeBox},
+    node::{constant_scalar_node, state_node, Node, NodeBox},
+    vector::Vector,
 };
 
+#[derive(Debug)]
 pub enum ParseError {
     InvalidCharacter(char),
     Expected(&'static str),
     InvalidNumber(String),
     UnknownIdent(String),
+    InvalidOperation {
+        a: &'static str,
+        b: &'static str,
+        op: &'static str,
+    },
+    CannotCall(&'static str),
+    WrongNumberOfArguments {
+        name: String,
+        found: usize,
+    },
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::InvalidCharacter(c) => write!(f, "Invalid character: {}", c),
+            ParseError::Expected(expectation) => write!(f, "Expected {}", expectation),
+            ParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
+            ParseError::UnknownIdent(s) => write!(f, "Unknown identifier: {}", s),
+            ParseError::InvalidOperation { a, b, op } => {
+                write!(f, "Invalid operation: {} {} {}", a, op, b)
+            }
+            ParseError::CannotCall(name) => write!(f, "Cannot call {name}"),
+            ParseError::WrongNumberOfArguments { name, found } => {
+                write!(f, "No variant of {name} takes {found} arguments")
+            }
+        }
+    }
 }
 
 pub type ParseResult<T = ()> = Result<T, ParseError>;
 
-pub fn parse(input: &str) -> ParseResult {
+pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
     let tokens = lex(input).map_err(ParseError::InvalidCharacter)?;
     let mut parser = Parser {
         tokens,
@@ -27,7 +59,7 @@ pub fn parse(input: &str) -> ParseResult {
         }],
     };
     while parser.item()? {}
-    Ok(())
+    Ok(parser.try_expr()?.map(Value::into_node))
 }
 
 struct Parser {
@@ -46,12 +78,12 @@ impl Parser {
         self.curr += 1;
         Some(token)
     }
-    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
-        let token = token.into();
-        if self
-            .next_token_map(|t| if t == token { Some(()) } else { None })
+    fn try_exact(&mut self, token: impl Into<Token>) -> bool {
+        self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
             .is_some()
-        {
+    }
+    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
+        if self.try_exact(token.into()) {
             Ok(())
         } else {
             Err(ParseError::Expected(expectation))
@@ -67,15 +99,19 @@ impl Parser {
         self.binding()
     }
     fn binding(&mut self) -> ParseResult<bool> {
+        let start = self.curr;
         let Some(name) = self.ident() else {
             return Ok(false);
         };
-        self.expect(Token::Equals, "equals")?;
-        let value = self.expr()?.ok_or(ParseError::Expected("expression"))?;
+        if self.expect(Token::Equals, "equals").is_err() {
+            self.curr = start;
+            return Ok(false);
+        }
+        let value = self.try_expr()?.ok_or(ParseError::Expected("expression"))?;
         self.scopes.last_mut().unwrap().bindings.insert(name, value);
         Ok(true)
     }
-    fn expr(&mut self) -> ParseResult<Option<Value>> {
+    fn try_expr(&mut self) -> ParseResult<Option<Value>> {
         self.try_as_expr()
     }
     fn try_as_expr(&mut self) -> ParseResult<Option<Value>> {
@@ -90,8 +126,8 @@ impl Parser {
             }) {
                 let right = self.try_as_expr()?.ok_or(ParseError::Expected("term"))?;
                 match op {
-                    BinOp::Add => left.bin_op(right, "+", Add::add),
-                    BinOp::Sub => left.bin_op(right, "-", Sub::sub),
+                    BinOp::Add => left.bin_op(right, "+", Add::add)?,
+                    BinOp::Sub => left.bin_op(right, "-", Sub::sub)?,
                     _ => unreachable!(),
                 }
             } else {
@@ -100,7 +136,7 @@ impl Parser {
         ))
     }
     fn try_md_expr(&mut self) -> ParseResult<Option<Value>> {
-        let Some(left) = self.try_term()? else {
+        let Some(left) = self.try_call()? else {
             return Ok(None);
         };
         Ok(Some(
@@ -111,8 +147,8 @@ impl Parser {
             }) {
                 let right = self.try_md_expr()?.ok_or(ParseError::Expected("term"))?;
                 match op {
-                    BinOp::Mul => left.bin_op(right, "*", Mul::mul),
-                    BinOp::Div => left.bin_op(right, "/", Div::div),
+                    BinOp::Mul => left.bin_op(right, "*", Mul::mul)?,
+                    BinOp::Div => left.bin_op(right, "/", Div::div)?,
                     _ => unreachable!(),
                 }
             } else {
@@ -120,15 +156,50 @@ impl Parser {
             },
         ))
     }
+    fn try_call(&mut self) -> ParseResult<Option<Value>> {
+        let Some(term) = self.try_term()? else {
+            return Ok(None);
+        };
+        Ok(Some(if self.try_exact(Token::OpenParen) {
+            let mut args = Vec::new();
+            while let Some(arg) = self.try_expr()? {
+                args.push(arg);
+                if !self.try_exact(Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(Token::CloseParen, "`)`")?;
+            let f_name = match term {
+                Value::BuiltinFn(name) => name,
+                value => return Err(ParseError::CannotCall(value.type_name())),
+            };
+            let f_overrides = &BUILTINS[&f_name];
+            let f = f_overrides
+                .get(&args.len())
+                .ok_or(ParseError::WrongNumberOfArguments {
+                    name: f_name,
+                    found: args.len(),
+                })?;
+            Value::Node(f(args))
+        } else {
+            term
+        }))
+    }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident) {
                 value.clone()
+            } else if BUILTINS.contains_key(&ident) {
+                Value::BuiltinFn(ident)
             } else {
                 return Err(ParseError::UnknownIdent(ident));
             }
         } else if let Some(num) = self.number()? {
             Value::Number(num)
+        } else if self.try_exact(Token::OpenParen) {
+            let res = self.try_expr()?.ok_or(ParseError::Expected("expression"))?;
+            self.expect(Token::CloseParen, "`)`")?;
+            res
         } else {
             return Ok(None);
         }))
@@ -150,19 +221,61 @@ impl Parser {
 }
 
 #[derive(Clone)]
-enum Value {
+pub enum Value {
     Number(f64),
+    #[allow(dead_code)]
     Node(NodeBox),
+    BuiltinFn(String),
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Number(n) => write!(f, "{n}"),
+            Value::Node(node) => write!(f, "{node:?}"),
+            Value::BuiltinFn(name) => write!(f, "{name}"),
+        }
+    }
+}
+
+impl Node for Value {
+    fn boxed(&self) -> NodeBox {
+        match self {
+            Value::Number(n) => NodeBox::new(constant_scalar_node(*n)),
+            Value::Node(node) => node.clone(),
+            Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
+        }
+    }
+    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
+        match self {
+            Value::Number(n) => Vector::splat(*n),
+            Value::Node(node) => node.sample(sample_rate, pos, dir),
+            Value::BuiltinFn(_) => Vector::ZERO,
+        }
+    }
 }
 
 impl Value {
+    fn into_node(self) -> NodeBox {
+        match self {
+            Value::Node(node) => node,
+            _ => self.boxed(),
+        }
+    }
+    fn type_name(&self) -> &'static str {
+        match self {
+            Value::Number(_) => "number",
+            Value::Node(_) => "node",
+            Value::BuiltinFn(_) => "builtin function",
+        }
+    }
     fn bin_op(
         self,
         other: Self,
         op_name: &'static str,
         f: impl Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
-    ) -> Self {
-        match (self, other) {
+    ) -> ParseResult<Self> {
+        Ok(match (self, other) {
             (Value::Number(a), Value::Number(b)) => Value::Number(f(a, b)),
             (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("{a} {op_name} {b:?}"),
@@ -183,6 +296,13 @@ impl Value {
                         .with(b.sample(sample_rate, pos, dir), |a, b| f(a, b))
                 },
             ))),
-        }
+            (a, b) => {
+                return Err(ParseError::InvalidOperation {
+                    a: a.type_name(),
+                    b: b.type_name(),
+                    op: op_name,
+                })
+            }
+        })
     }
 }

@@ -181,6 +181,7 @@ name = "cube"
 version = "0.1.0"
 dependencies = [
  "hodaun",
+ "once_cell",
  "parking_lot",
 ]
 

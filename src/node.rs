@@ -1,6 +1,6 @@
 use std::{
     f64::consts::{PI, TAU},
-    fmt::{self, Debug},
+    fmt,
     sync::Arc,
 };
 
@@ -8,13 +8,27 @@ use hodaun::{Mono, Shared, Source};
 
 use crate::vector::{modulus, Vector};
 
-pub trait Node: Debug + Send + Sync {
+pub trait Node: fmt::Debug + Send + Sync {
     fn boxed(&self) -> NodeBox;
     fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector;
 }
 
-#[derive(Debug)]
+impl Node for f64 {
+    fn boxed(&self) -> NodeBox {
+        NodeBox::new(constant_scalar_node(*self))
+    }
+    fn sample(&mut self, _sample_rate: f64, _pos: Vector, _dir: Vector) -> Vector {
+        Vector::new(*self, *self, *self)
+    }
+}
+
 pub struct NodeBox(Box<dyn Node>);
+
+impl fmt::Debug for NodeBox {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl NodeBox {
     pub fn new(node: impl Node + 'static) -> Self {
@@ -41,26 +55,26 @@ impl Node for NodeBox {
 pub struct Wave3 {
     pub name: &'static str,
     pub one_hz: Arc<dyn Fn(Vector) -> f64 + Send + Sync>,
-    pub freq: f64,
+    pub freq: NodeBox,
     pub pos: Vector,
 }
 
 impl fmt::Debug for Wave3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} hz {} wave", self.freq, self.name)
+        write!(f, "{:?} hz {} wave", self.freq, self.name)
     }
 }
 
 impl Wave3 {
     pub fn new(
         name: &'static str,
-        freq: f64,
+        freq: impl Node + 'static,
         one_hz: impl Fn(Vector) -> f64 + Send + Sync + 'static,
     ) -> Self {
         Self {
             name,
             one_hz: Arc::new(one_hz),
-            freq,
+            freq: freq.boxed(),
             pos: Vector::ZERO,
         }
     }
@@ -70,9 +84,9 @@ impl Node for Wave3 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, sample_rate: f64, _pos: Vector, dir: Vector) -> Vector {
+    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
         let sample = (self.one_hz)(self.pos);
-        self.pos += dir * (self.freq / sample_rate);
+        self.pos += dir * (self.freq.sample(sample_rate, pos, dir) / sample_rate);
         Vector::X * sample
     }
 }
@@ -108,29 +122,27 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-impl<F> GenericNode<F> {
-    pub fn new(name: impl Into<String>, f: F) -> Self {
-        Self {
-            name: name.into(),
-            state: (),
-            f,
-        }
+pub fn constant_scalar_node(
+    n: f64,
+) -> GenericNode<impl Fn(&mut (), f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static> {
+    GenericNode {
+        name: n.to_string(),
+        state: (),
+        f: move |_: &mut (), _, _, _| Vector::X * n,
     }
 }
 
-impl<F> GenericNode<F> {
-    pub fn simple(
-        name: impl Into<String>,
-        f: F,
-    ) -> GenericNode<impl Fn(&mut (), f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static>
-    where
-        F: Fn(Vector) -> f64 + Clone + Send + Sync + 'static,
-    {
-        GenericNode {
-            name: name.into(),
-            state: (),
-            f: move |_: &mut (), _, pos, _| Vector::X * f(pos),
-        }
+pub fn scalar_node<F>(
+    name: impl Into<String>,
+    f: F,
+) -> GenericNode<impl Fn(&mut (), f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static>
+where
+    F: Fn(Vector) -> f64 + Clone + Send + Sync + 'static,
+{
+    GenericNode {
+        name: name.into(),
+        state: (),
+        f: move |_: &mut (), _, pos, _| Vector::X * f(pos),
     }
 }
 
@@ -149,7 +161,7 @@ pub fn state_node<S>(
 
 impl<F, S> fmt::Debug for GenericNode<F, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} node", self.name)
+        write!(f, "{}", self.name)
     }
 }
 
