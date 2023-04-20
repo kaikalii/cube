@@ -17,7 +17,12 @@ fn main() {
         Ok(cube) => {
             let mut output = OutputDeviceMixer::<Mono>::with_default_device().unwrap();
 
-            let source = NodeSource::new(cube.root, cube.initial_pos, cube.initial_dir);
+            let source = NodeSource {
+                root: cube.root,
+                pos: cube.initial_pos,
+                dir: cube.initial_dir.into(),
+                tempo: cube.tempo,
+            };
 
             output.add(source);
 

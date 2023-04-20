@@ -16,6 +16,7 @@ pub struct Cube {
     pub root: NodeBox,
     pub initial_pos: Vector,
     pub initial_dir: Vector,
+    pub tempo: f64,
 }
 
 #[derive(Debug)]
@@ -94,10 +95,16 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         .map(|val| val.value.expect_vector("initial_dir", val.span))
         .transpose()?
         .unwrap_or(Vector::X);
+    let tempo = parser
+        .find_binding("tempo")
+        .map(|val| val.value.expect_number("tempo", val.span))
+        .transpose()?
+        .unwrap_or(120.0);
     Ok(Cube {
         root,
         initial_pos,
         initial_dir,
+        tempo,
     })
 }
 

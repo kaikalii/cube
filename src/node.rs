@@ -16,8 +16,8 @@ pub struct Env {
 }
 
 impl Env {
-    pub fn beat(&self) -> f64 {
-        60.0 / self.tempo
+    pub fn beat_freq(&self) -> f64 {
+        self.tempo / 60.0
     }
 }
 
@@ -248,17 +248,6 @@ pub struct NodeSource {
     pub pos: Vector,
     pub dir: Shared<Vector>,
     pub tempo: f64,
-}
-
-impl NodeSource {
-    pub fn new(root: impl Node, pos: Vector, dir: impl Into<Shared<Vector>>) -> Self {
-        Self {
-            root: NodeBox::new(root),
-            pos,
-            dir: dir.into(),
-            tempo: 120.0,
-        }
-    }
 }
 
 impl Source for NodeSource {

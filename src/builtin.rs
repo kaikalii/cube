@@ -185,6 +185,10 @@ make_builtin_fns!(
         x.bin_vector_op(y, "vec", span, |x, y| x + y)?
             .bin_vector_op(z, "vec", span, |xy, z| xy + z)?
     }),
+    /// Get the frequency of a beat subdivided into `n` parts at the current tempo
+    (beat, |n| {
+        state_node("beat", n, move |n, env| n.sample(env) * env.beat_freq())
+    }),
     /// Create looping sections from some values
     ///
     /// With an offset at `offset`, each section will be played for the `period`.
