@@ -5,6 +5,7 @@ use std::{
 };
 
 use hodaun::{Mono, Shared, Source};
+use rand::prelude::*;
 
 use crate::vector::Vector;
 
@@ -241,6 +242,14 @@ pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
 
 pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
     ((time % period).powf(falloff) * freq * TAU).sin()
+}
+
+pub fn noise_node() -> GenericNode<impl NodeFn<SmallRng>, SmallRng> {
+    state_node(
+        "noise",
+        SmallRng::from_entropy(),
+        |rng: &mut SmallRng, _: &Env| Vector::new(rng.gen(), rng.gen(), rng.gen()),
+    )
 }
 
 pub struct NodeSource {

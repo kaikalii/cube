@@ -22,6 +22,7 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "PI" => PI.into(),
         "TAU" => TAU.into(),
         "E" => E.into(),
+        "noise" => noise_node().into(),
         _ => return None,
     })
 }
@@ -112,15 +113,15 @@ make_builtin_fns!(
     })),
     /// Generate a square wave from a frequency
     (square, |freq| Wave3::new("square", freq, |pos| {
-        pos.map(|x| true_square_wave(x, 50))
+        pos.map(|x| true_square_wave(x, 200))
     })),
     /// Generate a saw wave from a frequency
     (saw, |freq| Wave3::new("saw", freq, |pos| {
-        pos.map(|x| true_saw_wave(x, 50))
+        pos.map(|x| true_saw_wave(x, 200))
     })),
     /// Generate a triangle wave from a frequency
     (tri, |freq| Wave3::new("triangle", freq, |pos| {
-        pos.map(|x| true_triangle_wave(x, 50))
+        pos.map(|x| true_triangle_wave(x, 200))
     })),
     /// Generate kick drum sound
     (kick, |freq| state_node("kick", freq, |freq, env| {
@@ -219,6 +220,10 @@ make_builtin_fns!(
     (beat, |n| {
         state_node("beat", n, move |n, env| n.sample(env) * env.beat_freq())
     }),
+    /// Get the period of `n` beats at the current tempo
+    (beats, |n| {
+        state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq())
+    }),
     /// Create looping sections from some values
     ///
     /// With an offset at `offset`, each section will be played for the `period`.
@@ -229,12 +234,12 @@ make_builtin_fns!(
     /// ```
     (sec, span, |offset, period, first, (rest)| {
         let offset = offset.expect_vector("offset", span)?;
-        let period = period.expect_vector("period", span)?;
         let mut nodes: Vec<NodeBox> = vec![first.into_node()];
         for value in rest {
             nodes.push(value.into_node());
         }
-        state_node("sections", nodes, move |nodes, env| {
+        state_node("sections", (nodes, period), move |(nodes, period), env| {
+            let period = period.sample(env);
             let i = offset
                 .zip(period)
                 .zip(env.pos)
