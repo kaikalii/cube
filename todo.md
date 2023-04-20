@@ -1,0 +1,3 @@
+- Non-additive waves
+- Simplify sequencing
+- Named notes
