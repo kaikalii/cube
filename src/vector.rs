@@ -107,6 +107,13 @@ macro_rules! bin_op {
             }
         }
 
+        impl $trait<Vector> for f64 {
+            type Output = Vector;
+            fn $method(self, other: Vector) -> Vector {
+                other.map(|v| self.$method(v))
+            }
+        }
+
         impl $assign_trait<f64> for Vector {
             fn $assign_method(&mut self, other: f64) {
                 self.$assign_method(Self::splat(other));

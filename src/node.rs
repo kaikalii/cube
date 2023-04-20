@@ -239,7 +239,7 @@ pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
     sum * 8.0 / PI.powi(2)
 }
 
-pub fn kick_wave(time: f64, freq: f64, falloff: f64, period: f64) -> f64 {
+pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
     ((time % period).powf(falloff) * freq * TAU).sin()
 }
 

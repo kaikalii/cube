@@ -76,20 +76,21 @@ macro_rules! make_builtin_fns {
             let mut docs: Vec<BuiltinDocs> = Vec::new();
             $(
                 let doc_lines: &[&str] = &[$($doc.trim()),*];
-                if !doc_lines.is_empty() {
-                    let doc = doc_lines.join("\n");
-                    let name = stringify!($name);
-                    if let Some(docs) = docs.iter_mut().find(|docs| docs.name == name) {
-                        docs.doc.push('\n');
-                        docs.doc.push_str(&doc);
-                    } else {
-                        docs.push(BuiltinDocs {
-                            name,
-                            doc,
-                            args: &[$(stringify!($arg)),*],
-                            varargs: { None::<&str> $(; Some(stringify!($varargs)))?},
-                        });
-                    }
+                let doc = doc_lines.join("\n");
+                let name = stringify!($name);
+                if let Some(docs) = docs.iter_mut().find(|docs| docs.name == name) {
+                    docs.doc.push('\n');
+                    docs.doc.push_str(&doc);
+                    docs.args.extend_from_slice(
+                        &[$(concat!("[", stringify!($arg), "]")),*][docs.args.len()..]
+                    );
+                } else if !doc_lines.is_empty() {
+                    docs.push(BuiltinDocs {
+                        name,
+                        doc,
+                        args: [$(stringify!($arg)),*].to_vec(),
+                        varargs: { None::<&str> $(; Some(stringify!($varargs)))?},
+                    });
                 }
             )*
             docs
@@ -121,6 +122,37 @@ make_builtin_fns!(
     (tri, |freq| Wave3::new("triangle", freq, |pos| {
         pos.map(|x| true_triangle_wave(x, 50))
     })),
+    /// Generate kick drum sound
+    (kick, |freq| state_node("kick", freq, |freq, env| {
+        let period = 1.0 / freq.sample(env);
+        period.with(env.pos, |period, pos| kick_wave(pos, period, 40.0, 0.5))
+    })),
+    (kick, |freq, high| state_node(
+        "kick",
+        (freq, high),
+        |(freq, high), env| {
+            let period = 1.0 / freq.sample(env);
+            let high = high.sample(env);
+            period.zip(high).with(env.pos, |(period, high), pos| {
+                kick_wave(pos, period, high, 0.5)
+            })
+        }
+    )),
+    (kick, |freq, high, falloff| state_node(
+        "kick",
+        (freq, high, falloff),
+        |(freq, high, falloff), env| {
+            let period = 1.0 / freq.sample(env);
+            let high = high.sample(env);
+            let falloff = falloff.sample(env);
+            period
+                .zip(high)
+                .zip(falloff)
+                .with(env.pos, |((period, high), falloff), pos| {
+                    kick_wave(pos, period, high, falloff)
+                })
+        }
+    )),
     /// Get the minimum of two or more values
     (min, span, |a, (rest)| {
         let mut min = a;
@@ -166,7 +198,7 @@ make_builtin_fns!(
     /// Passing a single value will create a vector with all components equal to that value.
     /// Passing two values will create a vector with the x and y components equal to those values.
     /// Passing three values will create a vector with the x, y, and z components equal to those values.
-    (vec, span, |v| v.un_scalar_to_vector_op(
+    (vec, span, |x| x.un_scalar_to_vector_op(
         "vec",
         span,
         Vector::splat
@@ -232,7 +264,7 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
 #[cfg(test)]
 struct BuiltinDocs {
     name: &'static str,
-    args: &'static [&'static str],
+    args: Vec<&'static str>,
     varargs: Option<&'static str>,
     doc: String,
 }
