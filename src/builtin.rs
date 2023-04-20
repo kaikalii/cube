@@ -288,23 +288,23 @@ make_builtin_fns!(
             Vector::new(x, y, z)
         })
     }),
-    (n2, sp, |x| x
-        .un_scalar_op("n2", sp, |x| x * 2f64.powf(2.0 / 12.0))?),
+    (m2, sp, |x| x
+        .un_scalar_op("m2", sp, |x| x * 2f64.powf(2.0 / 12.0))?),
     (b3, sp, |x| x
         .un_scalar_op("b3", sp, |x| x * 2f64.powf(3.0 / 12.0))?),
-    (n3, sp, |x| x
+    (m3, sp, |x| x
         .un_scalar_op("m3", sp, |x| x * 2f64.powf(4.0 / 12.0))?),
-    (n4, sp, |x| x
-        .un_scalar_op("n4", sp, |x| x * 2f64.powf(5.0 / 12.0))?),
-    (n5, sp, |x| x
-        .un_scalar_op("n5", sp, |x| x * 2f64.powf(7.0 / 12.0))?),
-    (n6, sp, |x| x
-        .un_scalar_op("n6", sp, |x| x * 2f64.powf(9.0 / 12.0))?),
+    (p4, sp, |x| x
+        .un_scalar_op("p4", sp, |x| x * 2f64.powf(5.0 / 12.0))?),
+    (p5, sp, |x| x
+        .un_scalar_op("p5", sp, |x| x * 2f64.powf(7.0 / 12.0))?),
+    (m6, sp, |x| x
+        .un_scalar_op("m6", sp, |x| x * 2f64.powf(9.0 / 12.0))?),
     (b7, sp, |x| x
         .un_scalar_op("b7", sp, |x| x * 2f64.powf(10.0 / 12.0))?),
-    (n7, sp, |x| x
-        .un_scalar_op("n7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
-    (n8, sp, |x| x.un_scalar_op("n8", sp, |x| x * 2.0)?),
+    (m7, sp, |x| x
+        .un_scalar_op("m7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
+    (p8, sp, |x| x.un_scalar_op("p8", sp, |x| x * 2.0)?),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

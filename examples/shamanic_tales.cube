@@ -1,9 +1,10 @@
 hh = 0.3 * noise * X * sec 0 (beat 16) 1 0 0 0
 snare = noise * X * sec 0 (beat 4) 0 0 0 0 1 0 0 0
 f = 51.91
-baseline_notes = sec 0 (beat 4) f f f (b7 f) f f (n8 f) f
+baseline_notes = sec 0 (beat 4) f f f (b7 f) f f (p8 f) f
 baseline = (max 0 $ 0.3 + 0.7 * saw (perbeat 4)) * square baseline_notes
+melody = 0.5 * tri (f * 8) * sec 0 (beat 4) 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0
 tempo = 120
-kick (perbeat 1) + hh + snare + baseline
+kick (perbeat 1) + hh + snare + baseline + melody
 
 
