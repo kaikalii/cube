@@ -1,0 +1,2 @@
+- Add variadic builtin functions
+- Add initial position and direction definition
