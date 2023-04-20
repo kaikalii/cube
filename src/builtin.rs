@@ -8,24 +8,22 @@ pub type BuiltinFn = dyn Fn(Vec<Value>) -> Value + Send + Sync;
 
 type BuiltinFnMap = HashMap<String, HashMap<usize, Box<BuiltinFn>>>;
 
-pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtins);
+macro_rules! build_map {
+    ($(($name:ident, |$($arg:ident),* $(,)?| $body:expr)),* $(,)*) => {{
+        let mut map: BuiltinFnMap = HashMap::new();
+        $(
+            let arg_count = 0 $(+ { stringify!($arg); 1 })*;
+            map.entry(stringify!($name).to_string()).or_default().insert(arg_count, Box::new(|args: Vec<Value>| {
+                let mut args = args.into_iter();
+                $(let $arg = args.next().unwrap();)*
+                $body.into()
+            }));
+        )*
+        map
+    }};
+}
 
-fn builtins() -> BuiltinFnMap {
-    let mut map: BuiltinFnMap = HashMap::new();
-
-    macro_rules! build_map {
-        ($(($name:ident, |$($arg:ident),* $(,)?| $body:expr)),* $(,)*) => {
-            $(
-                let arg_count = 0 $(+ { stringify!($arg); 1 })*;
-                map.entry(stringify!($name).to_string()).or_default().insert(arg_count, Box::new(|args: Vec<Value>| {
-                    let mut args = args.into_iter();
-                    $(let $arg = args.next().unwrap();)*
-                    $body.into()
-                }));
-            )*
-        };
-    }
-
+pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
     build_map!(
         (sin, |freq| Wave3::new("sine", freq, |pos| {
             pos.map(|x| (x * TAU).sin()).reduce(Add::add)
@@ -57,7 +55,5 @@ fn builtins() -> BuiltinFnMap {
                 a.with(b, f64::max)
             }
         )),
-    );
-
-    map
-}
+    )
+});
