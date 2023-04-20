@@ -31,6 +31,23 @@ pub struct Span {
     pub end: Loc,
 }
 
+impl Default for Span {
+    fn default() -> Self {
+        Span {
+            start: Loc {
+                line: 1,
+                col: 1,
+                pos: 0,
+            },
+            end: Loc {
+                line: 1,
+                col: 1,
+                pos: 0,
+            },
+        }
+    }
+}
+
 impl Span {
     pub fn sp<T>(self, value: T) -> Sp<T> {
         Sp { value, span: self }

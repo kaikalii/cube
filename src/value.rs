@@ -138,31 +138,31 @@ impl Value {
             (Value::Vector(a), Value::Number(b)) => Value::Vector(a.map(|a| f(a, b))),
             (Value::Number(a), Value::Vector(b)) => Value::Vector(b.map(|b| f(a, b))),
             (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a} {op_name} {b:?}"),
+                format!("({op_name} {a} {b:?})"),
                 b,
                 move |b, sample_rate, pos, dir| b.sample(sample_rate, pos, dir).map(|b| f(a, b)),
             ))),
             (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b}"),
+                format!("({op_name} {a:?} {b})"),
                 a,
                 move |a, sample_rate, pos, dir| a.sample(sample_rate, pos, dir).map(|a| f(a, b)),
             ))),
             (Value::Vector(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 b,
                 move |b, sample_rate, pos, dir| {
                     b.sample(sample_rate, pos, dir).with(a, |b, a| f(a, b))
                 },
             ))),
             (Value::Node(a), Value::Vector(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 a,
                 move |a, sample_rate, pos, dir| {
                     a.sample(sample_rate, pos, dir).with(b, |a, b| f(a, b))
                 },
             ))),
             (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 (a, b),
                 move |(a, b), sample_rate, pos, dir| {
                     a.sample(sample_rate, pos, dir)
@@ -193,31 +193,31 @@ impl Value {
             (Value::Vector(a), Value::Number(b)) => Value::Vector(f(a, Vector::splat(b))),
             (Value::Number(a), Value::Vector(b)) => Value::Vector(f(Vector::splat(a), b)),
             (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a} {op_name} {b:?}"),
+                format!("({op_name} {a} {b:?})"),
                 b,
                 move |b, sample_rate, pos, dir| {
                     f(Vector::splat(a), b.sample(sample_rate, pos, dir))
                 },
             ))),
             (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b}"),
+                format!("({op_name} {a:?} {b})"),
                 a,
                 move |a, sample_rate, pos, dir| {
                     f(a.sample(sample_rate, pos, dir), Vector::splat(b))
                 },
             ))),
             (Value::Vector(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 b,
                 move |b, sample_rate, pos, dir| f(a, b.sample(sample_rate, pos, dir)),
             ))),
             (Value::Node(a), Value::Vector(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 a,
                 move |a, sample_rate, pos, dir| f(a.sample(sample_rate, pos, dir), b),
             ))),
             (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
-                format!("{a:?} {op_name} {b:?}"),
+                format!("({op_name} {a:?} {b:?})"),
                 (a, b),
                 move |(a, b), sample_rate, pos, dir| {
                     f(

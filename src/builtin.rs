@@ -1,8 +1,24 @@
-use std::{collections::HashMap, f64::consts::TAU};
+use std::{
+    collections::HashMap,
+    f64::consts::{E, PI, TAU},
+};
 
 use once_cell::sync::Lazy;
 
 use crate::{lex::Span, node::*, parse::ParseResult, value::Value, vector::Vector};
+
+pub fn builtin_constant(name: &str) -> Option<Value> {
+    Some(match name {
+        "ZERO" => Vector::ZERO.into(),
+        "X" => Vector::X.into(),
+        "Y" => Vector::Y.into(),
+        "Z" => Vector::Z.into(),
+        "PI" => PI.into(),
+        "TAU" => TAU.into(),
+        "E" => E.into(),
+        _ => return None,
+    })
+}
 
 pub type BuiltinFn = dyn Fn(Vec<Value>, Span) -> ParseResult<Value> + Send + Sync;
 
@@ -50,8 +66,22 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
             span,
             f64::max
         )?),
+        (pow, span, |a, b| a.bin_scalar_op(
+            b,
+            "pow",
+            span,
+            f64::powf
+        )?),
+        (log, span, |a, b| a.bin_scalar_op(
+            b,
+            "log",
+            span,
+            f64::log
+        )?),
         (neg, span, |x| x.un_scalar_op("neg", span, |x| -x)?),
         (abs, span, |x| x.un_scalar_op("abs", span, f64::abs)?),
+        (sqrt, span, |x| x.un_scalar_op("sqrt", span, f64::sqrt)?),
+        (exp, span, |x| x.un_scalar_op("exp", span, f64::exp)?),
         (x, span, |v| v
             .un_vector_op("x", span, |v| Vector::X * v.x)?),
         (y, span, |v| v

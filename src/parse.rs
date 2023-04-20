@@ -4,7 +4,12 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use crate::{builtin::BUILTINS, lex::*, node::*, value::Value};
+use crate::{
+    builtin::{builtin_constant, BUILTINS},
+    lex::*,
+    node::*,
+    value::Value,
+};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -96,18 +101,7 @@ impl Parser {
         {
             token.span
         } else {
-            Span {
-                start: Loc {
-                    line: 1,
-                    col: 1,
-                    pos: 0,
-                },
-                end: Loc {
-                    line: 1,
-                    col: 1,
-                    pos: 0,
-                },
-            }
+            Span::default()
         }
     }
     fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
@@ -229,6 +223,8 @@ impl Parser {
                 value.clone()
             } else if BUILTINS.contains_key(&ident.value) {
                 Value::BuiltinFn(ident.value)
+            } else if let Some(val) = builtin_constant(&ident.value) {
+                val
             } else {
                 return Err(ident.map(ParseError::UnknownIdent));
             }
