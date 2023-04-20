@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::ops::*;
+use std::{fmt, ops::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Vector<T = f64> {
@@ -26,6 +26,12 @@ impl<T> Vector<T> {
     pub fn reduce(self, mut f: impl FnMut(T, T) -> T) -> T {
         let xy = f(self.x, self.y);
         f(xy, self.z)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Vector<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})", self.x, self.y, self.z)
     }
 }
 

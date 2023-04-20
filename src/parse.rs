@@ -12,7 +12,11 @@ pub enum ParseError {
     Expected(&'static str),
     InvalidNumber(String),
     UnknownIdent(String),
-    InvalidOperation {
+    InvalidUnaryOperation {
+        op: &'static str,
+        operand: &'static str,
+    },
+    InvalidBinaryOperation {
         a: &'static str,
         b: &'static str,
         op: &'static str,
@@ -31,7 +35,10 @@ impl fmt::Display for ParseError {
             ParseError::Expected(expectation) => write!(f, "Expected {}", expectation),
             ParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
             ParseError::UnknownIdent(s) => write!(f, "Unknown identifier: {}", s),
-            ParseError::InvalidOperation { a, b, op } => {
+            ParseError::InvalidUnaryOperation { op, operand } => {
+                write!(f, "Invalid operation: {} {}", op, operand)
+            }
+            ParseError::InvalidBinaryOperation { a, b, op } => {
                 write!(f, "Invalid operation: {} {} {}", a, op, b)
             }
             ParseError::CannotCall(name) => write!(f, "Cannot call {name}"),
@@ -121,8 +128,8 @@ impl Parser {
             }) {
                 let right = self.try_as_expr()?.ok_or(ParseError::Expected("term"))?;
                 match op {
-                    BinOp::Add => left.bin_op(right, "+", Add::add)?,
-                    BinOp::Sub => left.bin_op(right, "-", Sub::sub)?,
+                    BinOp::Add => left.bin_scalar_op(right, "+", Add::add)?,
+                    BinOp::Sub => left.bin_scalar_op(right, "-", Sub::sub)?,
                     _ => unreachable!(),
                 }
             } else {
@@ -142,8 +149,8 @@ impl Parser {
             }) {
                 let right = self.try_md_expr()?.ok_or(ParseError::Expected("term"))?;
                 match op {
-                    BinOp::Mul => left.bin_op(right, "*", Mul::mul)?,
-                    BinOp::Div => left.bin_op(right, "/", Div::div)?,
+                    BinOp::Mul => left.bin_scalar_op(right, "*", Mul::mul)?,
+                    BinOp::Div => left.bin_scalar_op(right, "/", Div::div)?,
                     _ => unreachable!(),
                 }
             } else {

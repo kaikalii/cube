@@ -1,4 +1,8 @@
-use std::{collections::HashMap, f64::consts::TAU, ops::Add};
+use std::{
+    collections::HashMap,
+    f64::consts::TAU,
+    ops::{Add, Neg},
+};
 
 use once_cell::sync::Lazy;
 
@@ -37,7 +41,9 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
         (tri, |freq| Wave3::new("triangle", freq, |pos| {
             pos.map(|x| true_triangle_wave(x, 50)).reduce(Add::add)
         })),
-        (min, |a, b| a.bin_op(b, "min", f64::min)?),
-        (max, |a, b| a.bin_op(b, "max", f64::max)?),
+        (min, |a, b| a.bin_scalar_op(b, "min", f64::min)?),
+        (max, |a, b| a.bin_scalar_op(b, "max", f64::max)?),
+        (neg, |x| x.un_op("neg", Neg::neg)?),
+        (abs, |x| x.un_op("abs", f64::abs)?),
     )
 });

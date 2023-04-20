@@ -122,9 +122,17 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-pub fn constant_scalar_node(
-    n: f64,
-) -> GenericNode<impl Fn(&mut (), f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static> {
+pub trait NodeFn<S>:
+    Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static
+{
+}
+
+impl<F, S> NodeFn<S> for F where
+    F: Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static
+{
+}
+
+pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn<()>> {
     GenericNode {
         name: n.to_string(),
         state: (),
@@ -132,10 +140,15 @@ pub fn constant_scalar_node(
     }
 }
 
-pub fn scalar_node<F>(
-    name: impl Into<String>,
-    f: F,
-) -> GenericNode<impl Fn(&mut (), f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static>
+pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn<()>> {
+    GenericNode {
+        name: v.to_string(),
+        state: (),
+        f: move |_: &mut (), _, _, _| v,
+    }
+}
+
+pub fn scalar_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn<()>>
 where
     F: Fn(Vector) -> f64 + Clone + Send + Sync + 'static,
 {
@@ -149,9 +162,8 @@ where
 pub fn state_node<S>(
     name: impl Into<String>,
     state: S,
-    f: impl Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
-) -> GenericNode<impl Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static, S>
-{
+    f: impl NodeFn<S>,
+) -> GenericNode<impl NodeFn<S>, S> {
     GenericNode {
         name: name.into(),
         state,
@@ -167,7 +179,7 @@ impl<F, S> fmt::Debug for GenericNode<F, S> {
 
 impl<F, S> Node for GenericNode<F, S>
 where
-    F: Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
+    F: NodeFn<S>,
     S: Clone + Send + Sync + 'static,
 {
     fn boxed(&self) -> NodeBox {
@@ -229,7 +241,7 @@ pub struct NodeSource {
 }
 
 impl NodeSource {
-    pub fn new(root: impl Node + 'static, pos: Vector, dir: impl Into<Shared<Vector>>) -> Self {
+    pub fn new(root: impl Node, pos: Vector, dir: impl Into<Shared<Vector>>) -> Self {
         Self {
             pos,
             dir: dir.into(),
