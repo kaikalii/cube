@@ -237,8 +237,14 @@ make_builtin_fns!(
         }
     ),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
+    (perbeat, |n| {
+        state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq())
+    }),
+    /// Get the period that is an `n`th of a beat at the current tempo
     (beat, |n| {
-        state_node("beat", n, move |n, env| n.sample(env) * env.beat_freq())
+        state_node("beat", n, move |n, env| {
+            1.0 / env.beat_freq() / n.sample(env)
+        })
     }),
     /// Get the period of `n` beats at the current tempo
     (beats, |n| {
