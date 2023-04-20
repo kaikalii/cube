@@ -62,7 +62,7 @@ impl Value {
             Value::BuiltinFn(_) => "builtin function",
         }
     }
-    pub fn un_op(
+    pub fn un_scalar_op(
         self,
         op_name: &'static str,
         f: impl Fn(f64) -> f64 + Clone + Send + Sync + 'static,
@@ -75,6 +75,44 @@ impl Value {
                 node,
                 move |node, sample_rate, pos, dir| node.sample(sample_rate, pos, dir).map(|v| f(v)),
             ))),
+            Value::BuiltinFn(_) => {
+                return Err(ParseError::InvalidUnaryOperation {
+                    op: op_name,
+                    operand: self.type_name(),
+                })
+            }
+        })
+    }
+    pub fn un_vector_op(
+        self,
+        op_name: &'static str,
+        f: impl Fn(Vector) -> Vector + Clone + Send + Sync + 'static,
+    ) -> ParseResult<Self> {
+        Ok(match self {
+            Value::Number(n) => Value::Vector(f(Vector::splat(n))),
+            Value::Vector(v) => Value::Vector(f(v)),
+            Value::Node(node) => Value::Node(NodeBox::new(state_node(
+                format!("{op_name} {node:?}"),
+                node,
+                move |node, sample_rate, pos, dir| f(node.sample(sample_rate, pos, dir)),
+            ))),
+            Value::BuiltinFn(_) => {
+                return Err(ParseError::InvalidUnaryOperation {
+                    op: op_name,
+                    operand: self.type_name(),
+                })
+            }
+        })
+    }
+    pub fn un_scalar_to_vector_op(
+        self,
+        op_name: &'static str,
+        f: impl Fn(f64) -> Vector + Clone + Send + Sync + 'static,
+    ) -> ParseResult<Self> {
+        Ok(match self {
+            Value::Number(n) => Value::Vector(f(n)),
+            Value::Vector(v) => Value::Vector(v),
+            Value::Node(node) => Value::Node(node),
             Value::BuiltinFn(_) => {
                 return Err(ParseError::InvalidUnaryOperation {
                     op: op_name,
@@ -135,6 +173,74 @@ impl Value {
             }
         })
     }
+    pub fn bin_vector_op(
+        self,
+        other: Self,
+        op_name: &'static str,
+        f: impl Fn(Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
+    ) -> ParseResult<Self> {
+        Ok(match (self, other) {
+            (Value::Number(a), Value::Number(b)) => {
+                Value::Vector(f(Vector::splat(a), Vector::splat(b)))
+            }
+            (Value::Vector(a), Value::Vector(b)) => Value::Vector(f(a, b)),
+            (Value::Vector(a), Value::Number(b)) => Value::Vector(f(a, Vector::splat(b))),
+            (Value::Number(a), Value::Vector(b)) => Value::Vector(f(Vector::splat(a), b)),
+            (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a} {op_name} {b:?}"),
+                b,
+                move |b, sample_rate, pos, dir| {
+                    f(Vector::splat(a), b.sample(sample_rate, pos, dir))
+                },
+            ))),
+            (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b}"),
+                a,
+                move |a, sample_rate, pos, dir| {
+                    f(a.sample(sample_rate, pos, dir), Vector::splat(b))
+                },
+            ))),
+            (Value::Vector(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b:?}"),
+                b,
+                move |b, sample_rate, pos, dir| f(a, b.sample(sample_rate, pos, dir)),
+            ))),
+            (Value::Node(a), Value::Vector(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b:?}"),
+                a,
+                move |a, sample_rate, pos, dir| f(a.sample(sample_rate, pos, dir), b),
+            ))),
+            (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b:?}"),
+                (a, b),
+                move |(a, b), sample_rate, pos, dir| {
+                    f(
+                        a.sample(sample_rate, pos, dir),
+                        b.sample(sample_rate, pos, dir),
+                    )
+                },
+            ))),
+            (a, b) => {
+                return Err(ParseError::InvalidBinaryOperation {
+                    a: a.type_name(),
+                    b: b.type_name(),
+                    op: op_name,
+                })
+            }
+        })
+    }
+}
+
+impl From<f64> for Value {
+    fn from(n: f64) -> Self {
+        Value::Number(n)
+    }
+}
+
+impl From<Vector> for Value {
+    fn from(v: Vector) -> Self {
+        Value::Vector(v)
+    }
 }
 
 impl From<Wave3> for Value {
@@ -149,11 +255,5 @@ where
 {
     fn from(node: GenericNode<F, S>) -> Self {
         Value::Node(NodeBox::new(node))
-    }
-}
-
-impl From<f64> for Value {
-    fn from(n: f64) -> Self {
-        Value::Number(n)
     }
 }

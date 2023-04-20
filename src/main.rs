@@ -20,13 +20,13 @@ fn main() {
 
             let mut output = OutputDeviceMixer::<Mono>::with_default_device().unwrap();
 
-            let source = NodeSource::new(root, Vector::ZERO, Vector::new(1.0, 0.0, 0.0));
+            let source = NodeSource::new(root, Vector::ZERO, Vector::new(1.0, 1.0, 0.0));
 
             output.add(source);
 
             output.play_blocking().unwrap();
         }
         Ok(None) => println!("No root node"),
-        Err(err) => println!("Parse error: {:?}", err),
+        Err(err) => println!("Parse error: {err}"),
     }
 }

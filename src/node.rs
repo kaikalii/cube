@@ -54,7 +54,7 @@ impl Node for NodeBox {
 #[derive(Clone)]
 pub struct Wave3 {
     pub name: &'static str,
-    pub one_hz: Arc<dyn Fn(Vector) -> f64 + Send + Sync>,
+    pub one_hz: Arc<dyn Fn(Vector) -> Vector + Send + Sync>,
     pub freq: NodeBox,
     pub pos: Vector,
 }
@@ -69,7 +69,7 @@ impl Wave3 {
     pub fn new(
         name: &'static str,
         freq: impl Node + 'static,
-        one_hz: impl Fn(Vector) -> f64 + Send + Sync + 'static,
+        one_hz: impl Fn(Vector) -> Vector + Send + Sync + 'static,
     ) -> Self {
         Self {
             name,
@@ -87,7 +87,7 @@ impl Node for Wave3 {
     fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
         let sample = (self.one_hz)(self.pos);
         self.pos += dir * (self.freq.sample(sample_rate, pos, dir) / sample_rate);
-        Vector::X * sample
+        sample
     }
 }
 
@@ -136,7 +136,7 @@ pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn<()>> {
     GenericNode {
         name: n.to_string(),
         state: (),
-        f: move |_: &mut (), _, _, _| Vector::X * n,
+        f: move |_: &mut (), _, _, _| Vector::splat(n),
     }
 }
 
@@ -155,7 +155,7 @@ where
     GenericNode {
         name: name.into(),
         state: (),
-        f: move |_: &mut (), _, pos, _| Vector::X * f(pos),
+        f: move |_: &mut (), _, pos, _| Vector::splat(f(pos)),
     }
 }
 
@@ -256,6 +256,7 @@ impl Source for NodeSource {
         let dir = self.dir.get();
         let sample = self.root.sample(sample_rate, self.pos, dir);
         self.pos += dir * (1.0 / sample_rate);
-        Some(sample.x)
+        // println!("{sample}");
+        Some(sample.reduce(|a, b| a + b))
     }
 }

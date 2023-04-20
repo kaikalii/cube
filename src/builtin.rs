@@ -1,12 +1,8 @@
-use std::{
-    collections::HashMap,
-    f64::consts::TAU,
-    ops::{Add, Neg},
-};
+use std::{collections::HashMap, f64::consts::TAU};
 
 use once_cell::sync::Lazy;
 
-use crate::{node::*, parse::ParseResult, value::Value};
+use crate::{node::*, parse::ParseResult, value::Value, vector::Vector};
 
 pub type BuiltinFn = dyn Fn(Vec<Value>) -> ParseResult<Value> + Send + Sync;
 
@@ -30,20 +26,38 @@ macro_rules! build_map {
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
     build_map!(
         (sin, |freq| Wave3::new("sine", freq, |pos| {
-            pos.map(|x| (x * TAU).sin()).reduce(Add::add)
+            pos.map(|x| (x * TAU).sin())
         })),
         (square, |freq| Wave3::new("square", freq, |pos| {
-            pos.map(|x| true_square_wave(x, 50)).reduce(Add::add)
+            pos.map(|x| true_square_wave(x, 50))
         })),
         (saw, |freq| Wave3::new("saw", freq, |pos| {
-            pos.map(|x| true_saw_wave(x, 50)).reduce(Add::add)
+            pos.map(|x| true_saw_wave(x, 50))
         })),
         (tri, |freq| Wave3::new("triangle", freq, |pos| {
-            pos.map(|x| true_triangle_wave(x, 50)).reduce(Add::add)
+            pos.map(|x| true_triangle_wave(x, 50))
         })),
         (min, |a, b| a.bin_scalar_op(b, "min", f64::min)?),
         (max, |a, b| a.bin_scalar_op(b, "max", f64::max)?),
-        (neg, |x| x.un_op("neg", Neg::neg)?),
-        (abs, |x| x.un_op("abs", f64::abs)?),
+        (neg, |x| x.un_scalar_op("neg", |x| -x)?),
+        (abs, |x| x.un_scalar_op("abs", f64::abs)?),
+        (x, |v| v.un_vector_op("x", |v| Vector::X * v.x)?),
+        (y, |v| v.un_vector_op("y", |v| Vector::Y * v.y)?),
+        (z, |v| v.un_vector_op("z", |v| Vector::Z * v.z)?),
+        (len, |v| v
+            .un_vector_op("len", |v| Vector::X * v.length())?),
+        (vec, |v| v.un_scalar_to_vector_op("vec", Vector::splat)?),
+        (vec, |x, y| {
+            let x = x.un_vector_op("x", |v| Vector::X * v.x)?;
+            let y = y.un_vector_op("y", |v| Vector::Y * v.y)?;
+            x.bin_vector_op(y, "vec", |x, y| x + y)?
+        }),
+        (vec, |x, y, z| {
+            let x = x.un_vector_op("x", |v| Vector::X * v.x)?;
+            let y = y.un_vector_op("y", |v| Vector::Y * v.y)?;
+            let z = z.un_vector_op("z", |v| Vector::Z * v.z)?;
+            x.bin_vector_op(y, "vec", |x, y| x + y)?
+                .bin_vector_op(z, "vec", |xy, z| xy + z)?
+        }),
     )
 });
