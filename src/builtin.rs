@@ -53,7 +53,7 @@ type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 macro_rules! make_builtin_fns {
     ($(
         $(#[doc = $doc:literal])*
-        ($name:ident, $($span:ident,)? |$($arg:ident $(($default:expr))?),* $(,($varargs:ident))? $(,)?| $body:expr)),*
+        ($name:ident, $($span:ident,)? |$($(#[default($default:expr)])? $arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),*
     $(,)*) => {
         #[allow(unused_assignments, unreachable_code)]
         fn builtin_fns() -> BuiltinFnMap {
@@ -136,33 +136,51 @@ make_builtin_fns!(
         pos.map(|x| (x * TAU).sin())
     })),
     /// Generate a square wave from a frequency
-    (square, |freq| Wave3::new("square", freq, |pos| {
-        pos.map(|x| true_square_wave(x, 200))
-    })),
+    (square, |freq| Wave3::new("square", freq, |pos| pos
+        .map(square_wave))),
     /// Generate a saw wave from a frequency
-    (saw, |freq| Wave3::new("saw", freq, |pos| {
-        pos.map(|x| true_saw_wave(x, 200))
-    })),
+    (saw, |freq| Wave3::new("saw", freq, |pos| pos.map(saw_wave))),
     /// Generate a triangle wave from a frequency
-    (tri, |freq| Wave3::new("triangle", freq, |pos| {
-        pos.map(|x| true_triangle_wave(x, 200))
-    })),
+    (tri, |freq| Wave3::new("triangle", freq, |pos| pos
+        .map(triangle_wave))),
+    /// Generate an additive square wave from a frequency and number of harmonics
+    (hsquare, span, |freq, #[default(100)] n| {
+        let n = n.expect_number("n", span)? as usize;
+        Wave3::new("hsquare", freq, move |pos| {
+            pos.map(|x| true_square_wave(x, n))
+        })
+    }),
+    /// Generate an additive saw wave from a frequency and number of harmonics
+    (hsaw, span, |freq, #[default(100)] n| {
+        let n = n.expect_number("n", span)? as usize;
+        Wave3::new("hsaw", freq, move |pos| pos.map(|x| true_saw_wave(x, n)))
+    }),
+    /// Generate an additive triangle wave from a frequency and number of harmonics
+    (htri, span, |freq, #[default(100)] n| {
+        let n = n.expect_number("n", span)? as usize;
+        Wave3::new("htriangle", freq, move |pos| {
+            pos.map(|x| true_triangle_wave(x, n))
+        })
+    }),
     /// Generate kick drum sound
-    (kick, |freq, high(40), falloff(0.5)| state_node(
-        "kick",
-        (freq, high, falloff),
-        |(freq, high, falloff), env| {
-            let period = 1.0 / freq.sample(env);
-            let high = high.sample(env);
-            let falloff = falloff.sample(env);
-            period
-                .zip(high)
-                .zip(falloff)
-                .with(env.pos, |((period, high), falloff), pos| {
-                    kick_wave(pos, period, high, falloff)
-                })
-        }
-    )),
+    (
+        kick,
+        |freq, #[default(40)] high, #[default(0.5)] falloff| state_node(
+            "kick",
+            (freq, high, falloff),
+            |(freq, high, falloff), env| {
+                let period = 1.0 / freq.sample(env);
+                let high = high.sample(env);
+                let falloff = falloff.sample(env);
+                period
+                    .zip(high)
+                    .zip(falloff)
+                    .with(env.pos, |((period, high), falloff), pos| {
+                        kick_wave(pos, period, high, falloff)
+                    })
+            }
+        )
+    ),
     /// Get the minimum of two or more values
     (min, span, |a, (rest)| {
         let mut min = a;
@@ -207,13 +225,17 @@ make_builtin_fns!(
     ///
     /// Passing a single value will create a vector with all components equal to that value.
     /// Passing three values will create a vector with the x, y, and z components equal to those values.
-    (vec, span, |x, y(x.clone()), z(x.clone())| {
-        let x = x.un_vector_op("x", span, |v| Vector::X * v.x)?;
-        let y = y.un_vector_op("y", span, |v| Vector::Y * v.y)?;
-        let z = z.un_vector_op("z", span, |v| Vector::Z * v.z)?;
-        x.bin_vector_op(y, "vec", span, |x, y| x + y)?
-            .bin_vector_op(z, "vec", span, |xy, z| xy + z)?
-    }),
+    (
+        vec,
+        span,
+        |x, #[default(x.clone())] y, #[default(x.clone())] z| {
+            let x = x.un_vector_op("x", span, |v| Vector::X * v.x)?;
+            let y = y.un_vector_op("y", span, |v| Vector::Y * v.y)?;
+            let z = z.un_vector_op("z", span, |v| Vector::Z * v.z)?;
+            x.bin_vector_op(y, "vec", span, |x, y| x + y)?
+                .bin_vector_op(z, "vec", span, |xy, z| xy + z)?
+        }
+    ),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
     (beat, |n| {
         state_node("beat", n, move |n, env| n.sample(env) * env.beat_freq())

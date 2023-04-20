@@ -18,6 +18,21 @@ Generate a saw wave from a frequency
 
 Generate a triangle wave from a frequency
 
+# `hsquare`
+<code><b>hsquare</b> freq [n = 100]</code>
+
+Generate an additive square wave from a frequency and number of harmonics
+
+# `hsaw`
+<code><b>hsaw</b> freq [n = 100]</code>
+
+Generate an additive saw wave from a frequency and number of harmonics
+
+# `htri`
+<code><b>htri</b> freq [n = 100]</code>
+
+Generate an additive triangle wave from a frequency and number of harmonics
+
 # `kick`
 <code><b>kick</b> freq [high = 40] [falloff = 0.5]</code>
 

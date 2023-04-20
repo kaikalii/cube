@@ -7,7 +7,7 @@ use std::{
 use hodaun::{Mono, Shared, Source};
 use rand::prelude::*;
 
-use crate::vector::Vector;
+use crate::vector::{modulus, Vector};
 
 pub struct Env {
     pub sample_rate: f64,
@@ -209,6 +209,14 @@ where
     }
 }
 
+pub fn square_wave(time: f64) -> f64 {
+    if modulus(time, 1.0) < 0.5 {
+        1.0
+    } else {
+        -1.0
+    }
+}
+
 pub fn true_square_wave(time: f64, n: usize) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
@@ -219,6 +227,10 @@ pub fn true_square_wave(time: f64, n: usize) -> f64 {
     sum
 }
 
+pub fn saw_wave(time: f64) -> f64 {
+    1.0 - modulus(time, 1.0) * 2.0
+}
+
 pub fn true_saw_wave(time: f64, n: usize) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
@@ -227,6 +239,10 @@ pub fn true_saw_wave(time: f64, n: usize) -> f64 {
         sum += (n * k).sin() / n;
     }
     sum * 2.0 / PI
+}
+
+pub fn triangle_wave(time: f64) -> f64 {
+    4.0 * (time - (time + 0.5).floor()).abs() - 1.0
 }
 
 pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
