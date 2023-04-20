@@ -38,11 +38,11 @@ impl Node for Value {
             Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
         }
     }
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
+    fn sample(&mut self, env: &Env) -> Vector {
         match self {
             Value::Number(n) => Vector::splat(*n),
             Value::Vector(v) => *v,
-            Value::Node(node) => node.sample(sample_rate, pos, dir),
+            Value::Node(node) => node.sample(env),
             Value::BuiltinFn(_) => Vector::ZERO,
         }
     }
@@ -88,7 +88,7 @@ impl Value {
             Value::Node(node) => Value::Node(NodeBox::new(state_node(
                 format!("{op_name} {node:?}"),
                 node,
-                move |node, sample_rate, pos, dir| node.sample(sample_rate, pos, dir).map(|v| f(v)),
+                move |node, env| node.sample(env).map(|v| f(v)),
             ))),
             Value::BuiltinFn(_) => {
                 return Err(span.sp(ParseError::InvalidUnaryOperation {
@@ -110,7 +110,7 @@ impl Value {
             Value::Node(node) => Value::Node(NodeBox::new(state_node(
                 format!("{op_name} {node:?}"),
                 node,
-                move |node, sample_rate, pos, dir| f(node.sample(sample_rate, pos, dir)),
+                move |node, env| f(node.sample(env)),
             ))),
             Value::BuiltinFn(_) => {
                 return Err(span.sp(ParseError::InvalidUnaryOperation {
@@ -153,34 +153,27 @@ impl Value {
             (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a} {b:?})"),
                 b,
-                move |b, sample_rate, pos, dir| b.sample(sample_rate, pos, dir).map(|b| f(a, b)),
+                move |b, env| b.sample(env).map(|b| f(a, b)),
             ))),
             (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b})"),
                 a,
-                move |a, sample_rate, pos, dir| a.sample(sample_rate, pos, dir).map(|a| f(a, b)),
+                move |a, env| a.sample(env).map(|a| f(a, b)),
             ))),
             (Value::Vector(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 b,
-                move |b, sample_rate, pos, dir| {
-                    b.sample(sample_rate, pos, dir).with(a, |b, a| f(a, b))
-                },
+                move |b, env| b.sample(env).with(a, |b, a| f(a, b)),
             ))),
             (Value::Node(a), Value::Vector(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 a,
-                move |a, sample_rate, pos, dir| {
-                    a.sample(sample_rate, pos, dir).with(b, |a, b| f(a, b))
-                },
+                move |a, env| a.sample(env).with(b, |a, b| f(a, b)),
             ))),
             (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 (a, b),
-                move |(a, b), sample_rate, pos, dir| {
-                    a.sample(sample_rate, pos, dir)
-                        .with(b.sample(sample_rate, pos, dir), |a, b| f(a, b))
-                },
+                move |(a, b), env| a.sample(env).with(b.sample(env), |a, b| f(a, b)),
             ))),
             (a, b) => {
                 return Err(span.sp(ParseError::InvalidBinaryOperation {
@@ -208,36 +201,27 @@ impl Value {
             (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a} {b:?})"),
                 b,
-                move |b, sample_rate, pos, dir| {
-                    f(Vector::splat(a), b.sample(sample_rate, pos, dir))
-                },
+                move |b, env| f(Vector::splat(a), b.sample(env)),
             ))),
             (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b})"),
                 a,
-                move |a, sample_rate, pos, dir| {
-                    f(a.sample(sample_rate, pos, dir), Vector::splat(b))
-                },
+                move |a, env| f(a.sample(env), Vector::splat(b)),
             ))),
             (Value::Vector(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 b,
-                move |b, sample_rate, pos, dir| f(a, b.sample(sample_rate, pos, dir)),
+                move |b, env| f(a, b.sample(env)),
             ))),
             (Value::Node(a), Value::Vector(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 a,
-                move |a, sample_rate, pos, dir| f(a.sample(sample_rate, pos, dir), b),
+                move |a, env| f(a.sample(env), b),
             ))),
             (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
                 format!("({op_name} {a:?} {b:?})"),
                 (a, b),
-                move |(a, b), sample_rate, pos, dir| {
-                    f(
-                        a.sample(sample_rate, pos, dir),
-                        b.sample(sample_rate, pos, dir),
-                    )
-                },
+                move |(a, b), env| f(a.sample(env), b.sample(env)),
             ))),
             (a, b) => {
                 return Err(span.sp(ParseError::InvalidBinaryOperation {

@@ -8,16 +8,29 @@ use hodaun::{Mono, Shared, Source};
 
 use crate::vector::Vector;
 
+pub struct Env {
+    pub sample_rate: f64,
+    pub pos: Vector,
+    pub dir: Vector,
+    pub tempo: f64,
+}
+
+impl Env {
+    pub fn beat(&self) -> f64 {
+        60.0 / self.tempo
+    }
+}
+
 pub trait Node: fmt::Debug + Send + Sync + 'static {
     fn boxed(&self) -> NodeBox;
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector;
+    fn sample(&mut self, env: &Env) -> Vector;
 }
 
 impl Node for f64 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(constant_scalar_node(*self))
     }
-    fn sample(&mut self, _sample_rate: f64, _pos: Vector, _dir: Vector) -> Vector {
+    fn sample(&mut self, _: &Env) -> Vector {
         Vector::new(*self, *self, *self)
     }
 }
@@ -46,8 +59,8 @@ impl Node for NodeBox {
     fn boxed(&self) -> NodeBox {
         self.clone()
     }
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
-        self.0.sample(sample_rate, pos, dir)
+    fn sample(&mut self, env: &Env) -> Vector {
+        self.0.sample(env)
     }
 }
 
@@ -84,9 +97,9 @@ impl Node for Wave3 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
+    fn sample(&mut self, env: &Env) -> Vector {
         let sample = (self.one_hz)(self.pos);
-        self.pos += dir * (self.freq.sample(sample_rate, pos, dir) / sample_rate);
+        self.pos += env.dir * (self.freq.sample(env) / env.sample_rate);
         sample
     }
 }
@@ -108,9 +121,9 @@ impl Node for Enveloped {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
-        let sample = self.node.sample(sample_rate, pos, dir);
-        let amp = (self.envelope)(pos);
+    fn sample(&mut self, env: &Env) -> Vector {
+        let sample = self.node.sample(env);
+        let amp = (self.envelope)(env.pos);
         sample * amp
     }
 }
@@ -122,21 +135,15 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-pub trait NodeFn<S>:
-    Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static
-{
-}
+pub trait NodeFn<S>: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
 
-impl<F, S> NodeFn<S> for F where
-    F: Fn(&mut S, f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static
-{
-}
+impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
 
 pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn<()>> {
     GenericNode {
         name: n.to_string(),
         state: (),
-        f: move |_: &mut (), _, _, _| Vector::splat(n),
+        f: move |_: &mut (), _: &Env| Vector::splat(n),
     }
 }
 
@@ -144,7 +151,7 @@ pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn<()>> {
     GenericNode {
         name: v.to_string(),
         state: (),
-        f: move |_: &mut (), _, _, _| v,
+        f: move |_: &mut (), _: &Env| v,
     }
 }
 
@@ -155,18 +162,18 @@ where
     GenericNode {
         name: name.into(),
         state: (),
-        f: move |_: &mut (), _, pos, _| Vector::splat(f(pos)),
+        f: move |_: &mut (), env: &Env| Vector::splat(f(env.pos)),
     }
 }
 
 pub fn pure_node(
     name: impl Into<String>,
-    f: impl Fn(f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
+    f: impl Fn(&Env) -> Vector + Clone + Send + Sync + 'static,
 ) -> GenericNode<impl NodeFn<()>> {
     GenericNode {
         name: name.into(),
         state: (),
-        f: move |_: &mut (), sample_rate, pos, dir| f(sample_rate, pos, dir),
+        f: move |_: &mut (), env: &Env| f(env),
     }
 }
 
@@ -196,8 +203,8 @@ where
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector {
-        (self.f)(&mut self.state, sample_rate, pos, dir)
+    fn sample(&mut self, env: &Env) -> Vector {
+        (self.f)(&mut self.state, env)
     }
 }
 
@@ -237,17 +244,19 @@ pub fn kick_wave(time: f64, freq: f64, falloff: f64, period: f64) -> f64 {
 }
 
 pub struct NodeSource {
+    pub root: NodeBox,
     pub pos: Vector,
     pub dir: Shared<Vector>,
-    pub root: NodeBox,
+    pub tempo: f64,
 }
 
 impl NodeSource {
     pub fn new(root: impl Node, pos: Vector, dir: impl Into<Shared<Vector>>) -> Self {
         Self {
+            root: NodeBox::new(root),
             pos,
             dir: dir.into(),
-            root: NodeBox::new(root),
+            tempo: 120.0,
         }
     }
 }
@@ -256,7 +265,13 @@ impl Source for NodeSource {
     type Frame = Mono;
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let dir = self.dir.get();
-        let sample = self.root.sample(sample_rate, self.pos, dir);
+        let env = Env {
+            sample_rate,
+            pos: self.pos,
+            dir,
+            tempo: self.tempo,
+        };
+        let sample = self.root.sample(&env);
         self.pos += dir * (1.0 / sample_rate);
         Some(sample.reduce(|a, b| a + b))
     }

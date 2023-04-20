@@ -200,22 +200,25 @@ make_builtin_fns!(
         for value in rest {
             nodes.push(value.into_node());
         }
-        state_node("sections", nodes, move |nodes, sr, pos, dir| {
-            let i = offset.zip(period).zip(pos).map(|((offset, period), pos)| {
-                (modulus(pos - offset, period * nodes.len() as f64) / period) as usize
-            });
-            let x = nodes[i.x].sample(sr, pos, dir).x;
+        state_node("sections", nodes, move |nodes, env| {
+            let i = offset
+                .zip(period)
+                .zip(env.pos)
+                .map(|((offset, period), pos)| {
+                    (modulus(pos - offset, period * nodes.len() as f64) / period) as usize
+                });
+            let x = nodes[i.x].sample(env).x;
             let y = if i.x == i.y {
                 x
             } else {
-                nodes[i.y].sample(sr, pos, dir).y
+                nodes[i.y].sample(env).y
             };
             let z = if i.x == i.z {
                 x
             } else if i.y == i.z {
                 y
             } else {
-                nodes[i.z].sample(sr, pos, dir).z
+                nodes[i.z].sample(env).z
             };
             Vector::new(x, y, z)
         })
