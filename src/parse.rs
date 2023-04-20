@@ -279,6 +279,9 @@ impl Parser {
                 .ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
             res
+        } else if self.try_exact(Token::Dollar) {
+            self.try_expr()?
+                .ok_or_else(|| self.expected("expression"))?
         } else {
             return Ok(None);
         }))
