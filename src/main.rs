@@ -2,6 +2,7 @@ mod builtin;
 mod lex;
 mod node;
 mod parse;
+mod value;
 mod vector;
 
 use std::fs;

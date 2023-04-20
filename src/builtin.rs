@@ -2,10 +2,7 @@ use std::{collections::HashMap, f64::consts::TAU, ops::Add};
 
 use once_cell::sync::Lazy;
 
-use crate::{
-    node::*,
-    parse::{ParseResult, Value},
-};
+use crate::{node::*, parse::ParseResult, value::Value};
 
 pub type BuiltinFn = dyn Fn(Vec<Value>) -> ParseResult<Value> + Send + Sync;
 
