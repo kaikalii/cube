@@ -1,85 +1,85 @@
 # `sin`
-**`sin`** `freq`
+<code><b>sin</b> freq</code>
 
 Generate a sine wave from a frequency
 
 # `square`
-**`square`** `freq`
+<code><b>square</b> freq</code>
 
 Generate a square wave from a frequency
 
 # `saw`
-**`saw`** `freq`
+<code><b>saw</b> freq</code>
 
 Generate a saw wave from a frequency
 
 # `tri`
-**`tri`** `freq`
+<code><b>tri</b> freq</code>
 
 Generate a triangle wave from a frequency
 
 # `min`
-**`min`** `a ...rest`
+<code><b>min</b> a ...rest</code>
 
 Get the minimum of two or more values
 
 # `max`
-**`max`** `a ...rest`
+<code><b>max</b> a ...rest</code>
 
 Get the maximum of two or more values
 
 # `pow`
-**`pow`** `a b`
+<code><b>pow</b> a b</code>
 
 Raise a value to a power
 
 # `log`
-**`log`** `a b`
+<code><b>log</b> a b</code>
 
 Get the logarithm of a value
 
 # `neg`
-**`neg`** `x`
+<code><b>neg</b> x</code>
 
 Negate a value
 
 # `abs`
-**`abs`** `x`
+<code><b>abs</b> x</code>
 
 Get the absolute value of a value
 
 # `sqrt`
-**`sqrt`** `x`
+<code><b>sqrt</b> x</code>
 
 Get the square root of a value
 
 # `exp`
-**`exp`** `x`
+<code><b>exp</b> x</code>
 
 Get e raised to a value
 
 # `x`
-**`x`** `v`
+<code><b>x</b> v</code>
 
 Get the x component of a vector
 
 # `y`
-**`y`** `v`
+<code><b>y</b> v</code>
 
 Get the y component of a vector
 
 # `z`
-**`z`** `v`
+<code><b>z</b> v</code>
 
 Get the z component of a vector
 
 # `len`
-**`len`** `v`
+<code><b>len</b> v</code>
 
 Get the length of a vector
 
 # `vec`
-**`vec`** `v`
+<code><b>vec</b> v</code>
 
 Create a new vector
 
@@ -88,7 +88,7 @@ Passing two values will create a vector with the x and y components equal to tho
 Passing three values will create a vector with the x, y, and z components equal to those values.
 
 # `sec`
-**`sec`** `offset period first ...rest`
+<code><b>sec</b> offset period first ...rest</code>
 
 Create looping sections from some values
 

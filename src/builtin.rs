@@ -239,11 +239,11 @@ fn generate_docs() -> std::io::Result<()> {
     let mut file = File::create("builtins.md")?;
     for docs in builtin_docs() {
         writeln!(file, "# `{}`", docs.name)?;
-        write!(file, "**`{}`**", docs.name)?;
+        write!(file, "<code><b>{}</b>", docs.name)?;
         if let Some(varargs) = docs.varargs {
-            writeln!(file, " `{} ...{}`", docs.args.join(" "), varargs)?;
+            writeln!(file, " {} ...{}</code>", docs.args.join(" "), varargs)?;
         } else {
-            writeln!(file, " `{}`", docs.args.join(" "))?;
+            writeln!(file, " {}</code>", docs.args.join(" "))?;
         }
         writeln!(file)?;
         writeln!(file, "{}", docs.doc)?;
