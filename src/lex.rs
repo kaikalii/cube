@@ -36,6 +36,9 @@ impl Lexer {
         self.pos += 1;
         Some(c)
     }
+    fn next_char_exact(&mut self, c: char) -> bool {
+        self.next_char_if(|c2| c == c2).is_some()
+    }
     fn next_char(&mut self) -> Option<char> {
         self.next_char_if(|_| true)
     }
@@ -54,6 +57,12 @@ impl Lexer {
                     let mut num = c.to_string();
                     while let Some(c) = self.next_char_if(|c| c.is_ascii_digit()) {
                         num.push(c);
+                    }
+                    if self.next_char_exact('.') {
+                        num.push('.');
+                        while let Some(c) = self.next_char_if(|c| c.is_ascii_digit()) {
+                            num.push(c);
+                        }
                     }
                     tokens.push(if num == "-" {
                         Token::BinOp(BinOp::Sub)
