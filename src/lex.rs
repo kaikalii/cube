@@ -162,9 +162,11 @@ impl Lexer {
                             },
                         ))
                     }
-                    c if c.is_alphabetic() || c == '_' => {
+                    c if is_ident_char(c) => {
                         let mut ident = c.to_string();
-                        while let Some(c) = self.next_char_if(|c| c.is_alphanumeric() || c == '_') {
+                        while let Some(c) =
+                            self.next_char_if(|c| is_ident_char(c) || c.is_ascii_digit())
+                        {
                             ident.push(c);
                         }
                         tokens.push(self.end(start, Token::Ident(ident)));
@@ -184,4 +186,8 @@ impl Lexer {
         }
         Ok(tokens)
     }
+}
+
+fn is_ident_char(c: char) -> bool {
+    c.is_alphabetic() || c as u32 > 127 || "_#".contains(c)
 }

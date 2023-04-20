@@ -156,28 +156,6 @@ pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn<()>> {
     }
 }
 
-pub fn scalar_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn<()>>
-where
-    F: Fn(Vector) -> f64 + Clone + Send + Sync + 'static,
-{
-    GenericNode {
-        name: name.into(),
-        state: (),
-        f: move |_: &mut (), env: &Env| Vector::splat(f(env.pos)),
-    }
-}
-
-pub fn pure_node(
-    name: impl Into<String>,
-    f: impl Fn(&Env) -> Vector + Clone + Send + Sync + 'static,
-) -> GenericNode<impl NodeFn<()>> {
-    GenericNode {
-        name: name.into(),
-        state: (),
-        f: move |_: &mut (), env: &Env| f(env),
-    }
-}
-
 pub fn state_node<S>(
     name: impl Into<String>,
     state: S,

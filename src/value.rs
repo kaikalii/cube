@@ -120,24 +120,6 @@ impl Value {
             }
         })
     }
-    pub fn un_scalar_to_vector_op(
-        self,
-        op_name: &'static str,
-        span: Span,
-        f: impl Fn(f64) -> Vector + Clone + Send + Sync + 'static,
-    ) -> ParseResult<Self> {
-        Ok(match self {
-            Value::Number(n) => Value::Vector(f(n)),
-            Value::Vector(v) => Value::Vector(v),
-            Value::Node(node) => Value::Node(node),
-            Value::BuiltinFn(_) => {
-                return Err(span.sp(ParseError::InvalidUnaryOperation {
-                    op: op_name,
-                    operand: self.type_name(),
-                }))
-            }
-        })
-    }
     pub fn bin_scalar_op(
         self,
         other: Self,
