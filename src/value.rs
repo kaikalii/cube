@@ -63,16 +63,16 @@ impl Value {
             Value::BuiltinFn(_) => "builtin function",
         }
     }
-    pub fn expect_number(self, name: &'static str, span: Span) -> ParseResult<f64> {
+    pub fn expect_number(&self, name: &'static str, span: Span) -> ParseResult<f64> {
         match self {
-            Value::Number(n) => Ok(n),
+            Value::Number(n) => Ok(*n),
             _ => Err(span.sp(ParseError::ExpectedNumber(name))),
         }
     }
-    pub fn expect_vector(self, name: &'static str, span: Span) -> ParseResult<Vector> {
+    pub fn expect_vector(&self, name: &'static str, span: Span) -> ParseResult<Vector> {
         match self {
-            Value::Number(n) => Ok(Vector::splat(n)),
-            Value::Vector(v) => Ok(v),
+            Value::Number(n) => Ok(Vector::splat(*n)),
+            Value::Vector(v) => Ok(*v),
             _ => Err(span.sp(ParseError::ExpectedVector(name))),
         }
     }

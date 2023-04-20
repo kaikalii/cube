@@ -1,1 +1,0 @@
-- Add initial position and direction definition

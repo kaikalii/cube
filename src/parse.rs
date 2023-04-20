@@ -9,7 +9,14 @@ use crate::{
     lex::*,
     node::*,
     value::Value,
+    vector::Vector,
 };
+
+pub struct Cube {
+    pub root: NodeBox,
+    pub initial_pos: Vector,
+    pub initial_dir: Vector,
+}
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -60,7 +67,7 @@ impl fmt::Display for ParseError {
 
 pub type ParseResult<T = ()> = Result<T, Sp<ParseError>>;
 
-pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
+pub fn parse(input: &str) -> ParseResult<Cube> {
     let tokens = lex(input).map_err(|e| e.map(ParseError::InvalidCharacter))?;
     let mut parser = Parser {
         tokens,
@@ -73,7 +80,25 @@ pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
     while parser.item()? {
         while parser.try_exact(Token::Newline) {}
     }
-    Ok(parser.try_expr()?.map(Value::into_node))
+    let root = parser
+        .try_expr()?
+        .map(Value::into_node)
+        .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
+    let initial_pos = parser
+        .find_binding("initial_pos")
+        .map(|val| val.value.expect_vector("initial_pos", val.span))
+        .transpose()?
+        .unwrap_or(Vector::ZERO);
+    let initial_dir = parser
+        .find_binding("initial_dir")
+        .map(|val| val.value.expect_vector("initial_dir", val.span))
+        .transpose()?
+        .unwrap_or(Vector::X);
+    Ok(Cube {
+        root,
+        initial_pos,
+        initial_dir,
+    })
 }
 
 struct Parser {
@@ -83,7 +108,7 @@ struct Parser {
 }
 
 struct Scope {
-    bindings: HashMap<String, Value>,
+    bindings: HashMap<String, Sp<Value>>,
 }
 
 impl Parser {
@@ -121,11 +146,12 @@ impl Parser {
     fn expected(&self, expectation: &'static str) -> Sp<ParseError> {
         self.last_span().sp(ParseError::Expected(expectation))
     }
-    fn find_binding(&self, name: &str) -> Option<&Value> {
+    fn find_binding(&self, name: &str) -> Option<Sp<&Value>> {
         self.scopes
             .iter()
             .rev()
             .find_map(|scope| scope.bindings.get(name))
+            .map(|val| val.span.sp(&val.value))
     }
     fn item(&mut self) -> ParseResult<bool> {
         self.binding()
@@ -146,7 +172,7 @@ impl Parser {
             .last_mut()
             .unwrap()
             .bindings
-            .insert(name.value, value);
+            .insert(name.value, name.span.sp(value));
         Ok(true)
     }
     fn try_expr(&mut self) -> ParseResult<Option<Value>> {
@@ -230,7 +256,7 @@ impl Parser {
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident.value) {
-                value.clone()
+                value.value.clone()
             } else if BUILTINS.contains_key(&ident.value) {
                 Value::BuiltinFn(ident.value)
             } else if let Some(val) = builtin_constant(&ident.value) {

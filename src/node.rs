@@ -6,7 +6,7 @@ use std::{
 
 use hodaun::{Mono, Shared, Source};
 
-use crate::vector::{modulus, Vector};
+use crate::vector::Vector;
 
 pub trait Node: fmt::Debug + Send + Sync + 'static {
     fn boxed(&self) -> NodeBox;
