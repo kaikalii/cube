@@ -5,7 +5,13 @@ use std::{
 
 use once_cell::sync::Lazy;
 
-use crate::{lex::Span, node::*, parse::ParseResult, value::Value, vector::Vector};
+use crate::{
+    lex::Span,
+    node::*,
+    parse::ParseResult,
+    value::Value,
+    vector::{modulus, Vector},
+};
 
 pub fn builtin_constant(name: &str) -> Option<Value> {
     Some(match name {
@@ -131,5 +137,32 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
             x.bin_vector_op(y, "vec", span, |x, y| x + y)?
                 .bin_vector_op(z, "vec", span, |xy, z| xy + z)?
         }),
+        (sec, span, |start, period, first, (rest)| {
+            let start = start.expect_vector("start", span)?;
+            let period = period.expect_vector("period", span)?;
+            let mut nodes: Vec<NodeBox> = vec![first.into_node()];
+            for value in rest {
+                nodes.push(value.into_node());
+            }
+            state_node("sections", nodes, move |nodes, sr, pos, dir| {
+                let i = start.zip(period).zip(pos).map(|((start, period), pos)| {
+                    (modulus(pos - start, period * nodes.len() as f64) / period) as usize
+                });
+                let x = nodes[i.x].sample(sr, pos, dir).x;
+                let y = if i.x == i.y {
+                    x
+                } else {
+                    nodes[i.y].sample(sr, pos, dir).y
+                };
+                let z = if i.x == i.z {
+                    x
+                } else if i.y == i.z {
+                    y
+                } else {
+                    nodes[i.z].sample(sr, pos, dir).z
+                };
+                Vector::new(x, y, z)
+            })
+        })
     )
 });

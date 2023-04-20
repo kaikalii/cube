@@ -31,6 +31,8 @@ pub enum ParseError {
         name: String,
         found: usize,
     },
+    ExpectedNumber(&'static str),
+    ExpectedVector(&'static str),
 }
 
 impl fmt::Display for ParseError {
@@ -50,6 +52,8 @@ impl fmt::Display for ParseError {
             ParseError::WrongNumberOfArguments { name, found } => {
                 write!(f, "No variant of {name} takes {found} arguments")
             }
+            ParseError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
+            ParseError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
         }
     }
 }

@@ -159,6 +159,17 @@ where
     }
 }
 
+pub fn pure_node(
+    name: impl Into<String>,
+    f: impl Fn(f64, Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
+) -> GenericNode<impl NodeFn<()>> {
+    GenericNode {
+        name: name.into(),
+        state: (),
+        f: move |_: &mut (), sample_rate, pos, dir| f(sample_rate, pos, dir),
+    }
+}
+
 pub fn state_node<S>(
     name: impl Into<String>,
     state: S,
@@ -223,15 +234,6 @@ pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
 
 pub fn kick_wave(time: f64, freq: f64, falloff: f64, period: f64) -> f64 {
     ((time % period).powf(falloff) * freq * TAU).sin()
-}
-
-pub fn switch2(time: f64, period: f64, a: impl Fn(f64) -> f64, b: impl Fn(f64) -> f64) -> f64 {
-    let part_period = period / 2.0;
-    if modulus(time, period) < part_period {
-        a(modulus(time, part_period))
-    } else {
-        b(modulus(time, part_period))
-    }
 }
 
 pub struct NodeSource {
