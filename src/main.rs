@@ -27,6 +27,6 @@ fn main() {
             output.play_blocking().unwrap();
         }
         Ok(None) => println!("No root node"),
-        Err(err) => println!("Parse error: {err}"),
+        Err(err) => println!("Error at {err}"),
     }
 }

@@ -3,6 +3,7 @@
 use std::fmt;
 
 use crate::{
+    lex::Span,
     node::*,
     parse::{ParseError, ParseResult},
     vector::Vector,
@@ -65,6 +66,7 @@ impl Value {
     pub fn un_scalar_op(
         self,
         op_name: &'static str,
+        span: Span,
         f: impl Fn(f64) -> f64 + Clone + Send + Sync + 'static,
     ) -> ParseResult<Self> {
         Ok(match self {
@@ -76,16 +78,17 @@ impl Value {
                 move |node, sample_rate, pos, dir| node.sample(sample_rate, pos, dir).map(|v| f(v)),
             ))),
             Value::BuiltinFn(_) => {
-                return Err(ParseError::InvalidUnaryOperation {
+                return Err(span.sp(ParseError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
-                })
+                }))
             }
         })
     }
     pub fn un_vector_op(
         self,
         op_name: &'static str,
+        span: Span,
         f: impl Fn(Vector) -> Vector + Clone + Send + Sync + 'static,
     ) -> ParseResult<Self> {
         Ok(match self {
@@ -97,16 +100,17 @@ impl Value {
                 move |node, sample_rate, pos, dir| f(node.sample(sample_rate, pos, dir)),
             ))),
             Value::BuiltinFn(_) => {
-                return Err(ParseError::InvalidUnaryOperation {
+                return Err(span.sp(ParseError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
-                })
+                }))
             }
         })
     }
     pub fn un_scalar_to_vector_op(
         self,
         op_name: &'static str,
+        span: Span,
         f: impl Fn(f64) -> Vector + Clone + Send + Sync + 'static,
     ) -> ParseResult<Self> {
         Ok(match self {
@@ -114,10 +118,10 @@ impl Value {
             Value::Vector(v) => Value::Vector(v),
             Value::Node(node) => Value::Node(node),
             Value::BuiltinFn(_) => {
-                return Err(ParseError::InvalidUnaryOperation {
+                return Err(span.sp(ParseError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
-                })
+                }))
             }
         })
     }
@@ -125,6 +129,7 @@ impl Value {
         self,
         other: Self,
         op_name: &'static str,
+        span: Span,
         f: impl Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
     ) -> ParseResult<Self> {
         Ok(match (self, other) {
@@ -165,11 +170,11 @@ impl Value {
                 },
             ))),
             (a, b) => {
-                return Err(ParseError::InvalidBinaryOperation {
+                return Err(span.sp(ParseError::InvalidBinaryOperation {
                     a: a.type_name(),
                     b: b.type_name(),
                     op: op_name,
-                })
+                }))
             }
         })
     }
@@ -177,6 +182,7 @@ impl Value {
         self,
         other: Self,
         op_name: &'static str,
+        span: Span,
         f: impl Fn(Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
     ) -> ParseResult<Self> {
         Ok(match (self, other) {
@@ -221,11 +227,11 @@ impl Value {
                 },
             ))),
             (a, b) => {
-                return Err(ParseError::InvalidBinaryOperation {
+                return Err(span.sp(ParseError::InvalidBinaryOperation {
                     a: a.type_name(),
                     b: b.type_name(),
                     op: op_name,
-                })
+                }))
             }
         })
     }

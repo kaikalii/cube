@@ -29,9 +29,15 @@ impl<T> Vector<T> {
     }
 }
 
-impl<T: fmt::Display> fmt::Display for Vector<T> {
+impl<T: fmt::Display + PartialEq + Default> fmt::Display for Vector<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {} {})", self.x, self.y, self.z)
+        if self.x == self.y && self.y == self.z {
+            write!(f, "{}", self.x)
+        } else if self.z == T::default() {
+            write!(f, "({} {})", self.x, self.y)
+        } else {
+            write!(f, "({} {} {})", self.x, self.y, self.z)
+        }
     }
 }
 

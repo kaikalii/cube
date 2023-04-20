@@ -256,7 +256,6 @@ impl Source for NodeSource {
         let dir = self.dir.get();
         let sample = self.root.sample(sample_rate, self.pos, dir);
         self.pos += dir * (1.0 / sample_rate);
-        // println!("{sample}");
         Some(sample.reduce(|a, b| a + b))
     }
 }

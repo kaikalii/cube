@@ -49,10 +49,10 @@ impl fmt::Display for ParseError {
     }
 }
 
-pub type ParseResult<T = ()> = Result<T, ParseError>;
+pub type ParseResult<T = ()> = Result<T, Sp<ParseError>>;
 
 pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
-    let tokens = lex(input).map_err(ParseError::InvalidCharacter)?;
+    let tokens = lex(input).map_err(|e| e.map(ParseError::InvalidCharacter))?;
     let mut parser = Parser {
         tokens,
         curr: 0,
@@ -65,7 +65,7 @@ pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
 }
 
 struct Parser {
-    tokens: Vec<Token>,
+    tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
 }
@@ -75,8 +75,12 @@ struct Scope {
 }
 
 impl Parser {
-    fn next_token_map<T>(&mut self, f: impl FnOnce(Token) -> Option<T>) -> Option<T> {
-        let token = self.tokens.get(self.curr).cloned().and_then(f)?;
+    fn next_token_map<T>(&mut self, f: impl FnOnce(Token) -> Option<T>) -> Option<Sp<T>> {
+        let token = self
+            .tokens
+            .get(self.curr)
+            .cloned()
+            .and_then(|sp| f(sp.value).map(|val| sp.span.sp(val)))?;
         self.curr += 1;
         Some(token)
     }
@@ -84,12 +88,37 @@ impl Parser {
         self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
             .is_some()
     }
+    fn last_span(&self) -> Span {
+        if let Some(token) = self
+            .tokens
+            .get(self.curr.saturating_sub(1))
+            .or_else(|| self.tokens.last())
+        {
+            token.span
+        } else {
+            Span {
+                start: Loc {
+                    line: 1,
+                    col: 1,
+                    pos: 0,
+                },
+                end: Loc {
+                    line: 1,
+                    col: 1,
+                    pos: 0,
+                },
+            }
+        }
+    }
     fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
         if self.try_exact(token.into()) {
             Ok(())
         } else {
-            Err(ParseError::Expected(expectation))
+            Err(self.expected(expectation))
         }
+    }
+    fn expected(&self, expectation: &'static str) -> Sp<ParseError> {
+        self.last_span().sp(ParseError::Expected(expectation))
     }
     fn find_binding(&self, name: &str) -> Option<&Value> {
         self.scopes
@@ -109,8 +138,14 @@ impl Parser {
             self.curr = start;
             return Ok(false);
         }
-        let value = self.try_expr()?.ok_or(ParseError::Expected("expression"))?;
-        self.scopes.last_mut().unwrap().bindings.insert(name, value);
+        let value = self
+            .try_expr()?
+            .ok_or_else(|| self.expected("expression"))?;
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .bindings
+            .insert(name.value, value);
         Ok(true)
     }
     fn try_expr(&mut self) -> ParseResult<Option<Value>> {
@@ -126,10 +161,10 @@ impl Parser {
                 Token::BinOp(BinOp::Sub) => Some(BinOp::Sub),
                 _ => None,
             }) {
-                let right = self.try_as_expr()?.ok_or(ParseError::Expected("term"))?;
-                match op {
-                    BinOp::Add => left.bin_scalar_op(right, "+", Add::add)?,
-                    BinOp::Sub => left.bin_scalar_op(right, "-", Sub::sub)?,
+                let right = self.try_as_expr()?.ok_or_else(|| self.expected("term"))?;
+                match op.value {
+                    BinOp::Add => left.bin_scalar_op(right, "+", op.span, Add::add)?,
+                    BinOp::Sub => left.bin_scalar_op(right, "-", op.span, Sub::sub)?,
                     _ => unreachable!(),
                 }
             } else {
@@ -147,10 +182,10 @@ impl Parser {
                 Token::BinOp(BinOp::Div) => Some(BinOp::Div),
                 _ => None,
             }) {
-                let right = self.try_md_expr()?.ok_or(ParseError::Expected("term"))?;
-                match op {
-                    BinOp::Mul => left.bin_scalar_op(right, "*", Mul::mul)?,
-                    BinOp::Div => left.bin_scalar_op(right, "/", Div::div)?,
+                let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
+                match op.value {
+                    BinOp::Mul => left.bin_scalar_op(right, "*", op.span, Mul::mul)?,
+                    BinOp::Div => left.bin_scalar_op(right, "/", op.span, Div::div)?,
                     _ => unreachable!(),
                 }
             } else {
@@ -162,6 +197,7 @@ impl Parser {
         let Some(term) = self.try_term()? else {
             return Ok(None);
         };
+        let f_span = self.last_span();
         let mut args = Vec::new();
         while let Some(arg) = self.try_term()? {
             args.push(arg);
@@ -171,38 +207,44 @@ impl Parser {
         } else {
             let f_name = match term {
                 Value::BuiltinFn(name) => name,
-                value => return Err(ParseError::CannotCall(value.type_name())),
+                value => {
+                    return Err(self
+                        .last_span()
+                        .sp(ParseError::CannotCall(value.type_name())))
+                }
             };
             let f_overrides = &BUILTINS[&f_name];
-            let f = f_overrides
-                .get(&args.len())
-                .ok_or(ParseError::WrongNumberOfArguments {
+            let f = f_overrides.get(&args.len()).ok_or_else(|| {
+                f_span.sp(ParseError::WrongNumberOfArguments {
                     name: f_name,
                     found: args.len(),
-                })?;
-            f(args)?
+                })
+            })?;
+            f(args, f_span)?
         }))
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {
-            if let Some(value) = self.find_binding(&ident) {
+            if let Some(value) = self.find_binding(&ident.value) {
                 value.clone()
-            } else if BUILTINS.contains_key(&ident) {
-                Value::BuiltinFn(ident)
+            } else if BUILTINS.contains_key(&ident.value) {
+                Value::BuiltinFn(ident.value)
             } else {
-                return Err(ParseError::UnknownIdent(ident));
+                return Err(ident.map(ParseError::UnknownIdent));
             }
         } else if let Some(num) = self.number()? {
             Value::Number(num)
         } else if self.try_exact(Token::OpenParen) {
-            let res = self.try_expr()?.ok_or(ParseError::Expected("expression"))?;
+            let res = self
+                .try_expr()?
+                .ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
             res
         } else {
             return Ok(None);
         }))
     }
-    fn ident(&mut self) -> Option<String> {
+    fn ident(&mut self) -> Option<Sp<String>> {
         self.next_token_map(|token| match token {
             Token::Ident(ident) => Some(ident),
             _ => None,
@@ -213,7 +255,11 @@ impl Parser {
             Token::Number(num) => Some(num),
             _ => None,
         })
-        .map(|num| num.parse().map_err(|_| ParseError::InvalidNumber(num)))
+        .map(|num| {
+            num.value
+                .parse()
+                .map_err(|_| num.span.sp(ParseError::InvalidNumber(num.value)))
+        })
         .transpose()
     }
 }
