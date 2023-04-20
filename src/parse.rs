@@ -155,15 +155,13 @@ impl Parser {
         let Some(term) = self.try_term()? else {
             return Ok(None);
         };
-        Ok(Some(if self.try_exact(Token::OpenParen) {
-            let mut args = Vec::new();
-            while let Some(arg) = self.try_expr()? {
-                args.push(arg);
-                if !self.try_exact(Token::Comma) {
-                    break;
-                }
-            }
-            self.expect(Token::CloseParen, "`)`")?;
+        let mut args = Vec::new();
+        while let Some(arg) = self.try_term()? {
+            args.push(arg);
+        }
+        Ok(Some(if args.is_empty() {
+            term
+        } else {
             let f_name = match term {
                 Value::BuiltinFn(name) => name,
                 value => return Err(ParseError::CannotCall(value.type_name())),
@@ -176,8 +174,6 @@ impl Parser {
                     found: args.len(),
                 })?;
             f(args)
-        } else {
-            term
         }))
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
