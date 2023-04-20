@@ -4,12 +4,7 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use crate::{
-    builtin::BUILTINS,
-    lex::*,
-    node::{constant_scalar_node, state_node, Node, NodeBox},
-    vector::Vector,
-};
+use crate::{builtin::BUILTINS, lex::*, node::*, vector::Vector};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -180,7 +175,7 @@ impl Parser {
                     name: f_name,
                     found: args.len(),
                 })?;
-            Value::Node(f(args))
+            f(args)
         } else {
             term
         }))
@@ -304,5 +299,26 @@ impl Value {
                 })
             }
         })
+    }
+}
+
+impl From<Wave3> for Value {
+    fn from(wave: Wave3) -> Self {
+        Value::Node(NodeBox::new(wave))
+    }
+}
+
+impl<F, S> From<GenericNode<F, S>> for Value
+where
+    GenericNode<F, S>: Node,
+{
+    fn from(node: GenericNode<F, S>) -> Self {
+        Value::Node(NodeBox::new(node))
+    }
+}
+
+impl From<f64> for Value {
+    fn from(n: f64) -> Self {
+        Value::Number(n)
     }
 }

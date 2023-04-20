@@ -8,7 +8,7 @@ use hodaun::{Mono, Shared, Source};
 
 use crate::vector::{modulus, Vector};
 
-pub trait Node: fmt::Debug + Send + Sync {
+pub trait Node: fmt::Debug + Send + Sync + 'static {
     fn boxed(&self) -> NodeBox;
     fn sample(&mut self, sample_rate: f64, pos: Vector, dir: Vector) -> Vector;
 }
