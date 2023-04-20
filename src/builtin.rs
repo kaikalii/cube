@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     f64::consts::{E, PI, TAU},
 };
 
@@ -28,68 +28,92 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ArgCount {
-    Exact(usize),
-    AtLeast(usize),
+pub struct ArgCount {
+    min: usize,
+    max: Option<usize>,
 }
 
 impl ArgCount {
     pub fn matches(&self, n: usize) -> bool {
-        match self {
-            ArgCount::Exact(n2) => n == *n2,
-            ArgCount::AtLeast(n2) => n >= *n2,
+        if n < self.min {
+            return false;
+        }
+        if let Some(max) = self.max {
+            n <= max
+        } else {
+            true
         }
     }
 }
 
 pub type BuiltinFn = dyn Fn(Vec<Value>, Span) -> ParseResult<Value> + Send + Sync;
 
-type BuiltinFnMap = HashMap<String, BTreeMap<ArgCount, Box<BuiltinFn>>>;
+type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 
 macro_rules! make_builtin_fns {
     ($(
         $(#[doc = $doc:literal])*
-        ($name:ident, $($span:ident,)? |$($arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),*
+        ($name:ident, $($span:ident,)? |$($arg:ident $(($default:expr))?),* $(,($varargs:ident))? $(,)?| $body:expr)),*
     $(,)*) => {
+        #[allow(unused_assignments, unreachable_code)]
         fn builtin_fns() -> BuiltinFnMap {
             let mut map = BuiltinFnMap::new();
             $(
-                let arg_count_n = 0 $(+ { stringify!($arg); 1 })*;
-                #[allow(unused_variables)]
-                let arg_count = ArgCount::Exact(arg_count_n);
-                $(let arg_count = {
+                let mut min = 0;
+                let mut max = Some(0);
+                $(
+                    stringify!($arg);
+                    min += 1;
+                    max = Some(max.unwrap() + 1);
+                    $(
+                        stringify!($default);
+                        min -= 1;
+                    )*
+                )*
+                $(
                     stringify!($varargs);
-                    ArgCount::AtLeast(arg_count_n)
-                };)?
-                map.entry(stringify!($name).to_string()).or_default().insert(arg_count, Box::new(|args: Vec<Value>, _span: Span| {
+                    max = None;
+                )*
+                let args = ArgCount { min, max };
+                map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Value>, _span: Span| {
                     let mut args = args.into_iter();
-                    $(let $arg = args.next().unwrap();)*
+                    $(let $arg = args.next().unwrap_or_else(|| {
+                        $(return $default.into();)?
+                        unreachable!()
+                    });)*
                     $(let $span = _span;)?
                     $(let $varargs: Vec<_> = args.collect();)?
                     Ok($body.into())
-                }));
+                })));
             )*
             map
         }
         #[cfg(test)]
-        #[allow(path_statements)]
+        #[allow(path_statements, unused_mut)]
         fn builtin_docs() -> Vec<BuiltinDocs> {
             let mut docs: Vec<BuiltinDocs> = Vec::new();
             $(
                 let doc_lines: &[&str] = &[$($doc.trim()),*];
-                let doc = doc_lines.join("\n");
-                let name = stringify!($name);
-                if let Some(docs) = docs.iter_mut().find(|docs| docs.name == name) {
-                    docs.doc.push('\n');
-                    docs.doc.push_str(&doc);
-                    docs.args.extend_from_slice(
-                        &[$(concat!("[", stringify!($arg), "]")),*][docs.args.len()..]
-                    );
-                } else if !doc_lines.is_empty() {
+                if !doc_lines.is_empty() {
+                    let doc = doc_lines.join("\n");
+                    let name = stringify!($name);
                     docs.push(BuiltinDocs {
                         name,
                         doc,
-                        args: [$(stringify!($arg)),*].to_vec(),
+                        args: vec![
+                            $({
+                                let mut name = stringify!($arg).to_string();
+                                $(
+                                    name.insert_str(0, "[");
+                                    name.push_str(" = ");
+                                    let default = stringify!($default);
+                                    let default = default.strip_suffix(".clone()").unwrap_or(default);
+                                    name.push_str(default);
+                                    name.push(']');
+                                )*
+                                name
+                            }),*
+                        ],
                         varargs: { None::<&str> $(; Some(stringify!($varargs)))?},
                     });
                 }
@@ -124,22 +148,7 @@ make_builtin_fns!(
         pos.map(|x| true_triangle_wave(x, 200))
     })),
     /// Generate kick drum sound
-    (kick, |freq| state_node("kick", freq, |freq, env| {
-        let period = 1.0 / freq.sample(env);
-        period.with(env.pos, |period, pos| kick_wave(pos, period, 40.0, 0.5))
-    })),
-    (kick, |freq, high| state_node(
-        "kick",
-        (freq, high),
-        |(freq, high), env| {
-            let period = 1.0 / freq.sample(env);
-            let high = high.sample(env);
-            period.zip(high).with(env.pos, |(period, high), pos| {
-                kick_wave(pos, period, high, 0.5)
-            })
-        }
-    )),
-    (kick, |freq, high, falloff| state_node(
+    (kick, |freq, high(40), falloff(0.5)| state_node(
         "kick",
         (freq, high, falloff),
         |(freq, high, falloff), env| {
@@ -197,19 +206,8 @@ make_builtin_fns!(
     /// Create a new vector
     ///
     /// Passing a single value will create a vector with all components equal to that value.
-    /// Passing two values will create a vector with the x and y components equal to those values.
     /// Passing three values will create a vector with the x, y, and z components equal to those values.
-    (vec, span, |x| x.un_scalar_to_vector_op(
-        "vec",
-        span,
-        Vector::splat
-    )?),
-    (vec, span, |x, y| {
-        let x = x.un_vector_op("x", span, |v| Vector::X * v.x)?;
-        let y = y.un_vector_op("y", span, |v| Vector::Y * v.y)?;
-        x.bin_vector_op(y, "vec", span, |x, y| x + y)?
-    }),
-    (vec, span, |x, y, z| {
+    (vec, span, |x, y(x.clone()), z(x.clone())| {
         let x = x.un_vector_op("x", span, |v| Vector::X * v.x)?;
         let y = y.un_vector_op("y", span, |v| Vector::Y * v.y)?;
         let z = z.un_vector_op("z", span, |v| Vector::Z * v.z)?;
@@ -269,7 +267,7 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
 #[cfg(test)]
 struct BuiltinDocs {
     name: &'static str,
-    args: Vec<&'static str>,
+    args: Vec<String>,
     varargs: Option<&'static str>,
     doc: String,
 }

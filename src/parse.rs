@@ -236,29 +236,23 @@ impl Parser {
         while let Some(arg) = self.try_term()? {
             args.push(arg);
         }
-        Ok(Some(if args.is_empty() {
-            term
-        } else {
-            let f_name = match term {
-                Value::BuiltinFn(name) => name,
-                value => {
-                    return Err(self
-                        .last_span()
-                        .sp(ParseError::CannotCall(value.type_name())))
-                }
-            };
-            let f_overrides = &BUILTINS[&f_name];
-            let (_, f) = f_overrides
-                .iter()
-                .find(|(args_n, _)| args_n.matches(args.len()))
-                .ok_or_else(|| {
-                    f_span.sp(ParseError::WrongNumberOfArguments {
-                        name: f_name,
-                        found: args.len(),
-                    })
-                })?;
-            f(args, f_span)?
-        }))
+        let f_name = match term {
+            Value::BuiltinFn(name) => name,
+            value if args.is_empty() => return Ok(Some(value)),
+            value => {
+                return Err(self
+                    .last_span()
+                    .sp(ParseError::CannotCall(value.type_name())))
+            }
+        };
+        let (arg_count, f) = &BUILTINS[&f_name];
+        if !arg_count.matches(args.len()) {
+            return Err(f_span.sp(ParseError::WrongNumberOfArguments {
+                name: f_name,
+                found: args.len(),
+            }));
+        }
+        f(args, f_span).map(Some)
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {

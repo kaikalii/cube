@@ -19,11 +19,9 @@ Generate a saw wave from a frequency
 Generate a triangle wave from a frequency
 
 # `kick`
-<code><b>kick</b> freq [high] [falloff]</code>
+<code><b>kick</b> freq [high = 40] [falloff = 0.5]</code>
 
 Generate kick drum sound
-
-
 
 # `min`
 <code><b>min</b> a ...rest</code>
@@ -86,20 +84,22 @@ Get the z component of a vector
 Get the length of a vector
 
 # `vec`
-<code><b>vec</b> x [y] [z]</code>
+<code><b>vec</b> x [y = x] [z = x]</code>
 
 Create a new vector
 
 Passing a single value will create a vector with all components equal to that value.
-Passing two values will create a vector with the x and y components equal to those values.
 Passing three values will create a vector with the x, y, and z components equal to those values.
-
-
 
 # `beat`
 <code><b>beat</b> n</code>
 
 Get the frequency of a beat subdivided into `n` parts at the current tempo
+
+# `beats`
+<code><b>beats</b> n</code>
+
+Get the period of `n` beats at the current tempo
 
 # `sec`
 <code><b>sec</b> offset period first ...rest</code>

@@ -234,6 +234,12 @@ impl Value {
     }
 }
 
+impl From<i64> for Value {
+    fn from(n: i64) -> Self {
+        Value::Number(n as f64)
+    }
+}
+
 impl From<f64> for Value {
     fn from(n: f64) -> Self {
         Value::Number(n)
