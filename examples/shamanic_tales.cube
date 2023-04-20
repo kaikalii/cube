@@ -6,5 +6,3 @@ baseline = (max 0 $ 0.3 + 0.7 * saw (perbeat 4)) * square baseline_notes
 melody = 0.5 * tri (f * 8) * sec 0 (beat 4) 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0
 tempo = 120
 kick (perbeat 1) + hh + snare + baseline + melody
-
-
