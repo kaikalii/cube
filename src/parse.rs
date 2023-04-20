@@ -1,6 +1,12 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Add, Div, Mul, Sub},
+};
 
-use crate::{lex::*, node::Node};
+use crate::{
+    lex::*,
+    node::{state_node, Node, NodeBox},
+};
 
 pub enum ParseError {
     InvalidCharacter(char),
@@ -20,7 +26,8 @@ pub fn parse(input: &str) -> ParseResult {
             bindings: HashMap::new(),
         }],
     };
-    todo!()
+    while parser.item()? {}
+    Ok(())
 }
 
 struct Parser {
@@ -56,26 +63,62 @@ impl Parser {
             .rev()
             .find_map(|scope| scope.bindings.get(name))
     }
-    fn item(&mut self) -> ParseResult {
-        Ok(())
+    fn item(&mut self) -> ParseResult<bool> {
+        self.binding()
     }
-    fn binding(&mut self) -> ParseResult {
+    fn binding(&mut self) -> ParseResult<bool> {
         let Some(name) = self.ident() else {
-            return Ok(())
+            return Ok(false);
         };
         self.expect(Token::Equals, "equals")?;
-        Ok(())
+        let value = self.expr()?.ok_or(ParseError::Expected("expression"))?;
+        self.scopes.last_mut().unwrap().bindings.insert(name, value);
+        Ok(true)
     }
     fn expr(&mut self) -> ParseResult<Option<Value>> {
-        todo!()
+        self.try_as_expr()
     }
-    fn as_expr(&mut self) -> ParseResult<Option<Value>> {
-        todo!()
+    fn try_as_expr(&mut self) -> ParseResult<Option<Value>> {
+        let Some(left) = self.try_md_expr()? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            if let Some(op) = self.next_token_map(|token| match token {
+                Token::BinOp(BinOp::Add) => Some(BinOp::Add),
+                Token::BinOp(BinOp::Sub) => Some(BinOp::Sub),
+                _ => None,
+            }) {
+                let right = self.try_as_expr()?.ok_or(ParseError::Expected("term"))?;
+                match op {
+                    BinOp::Add => left.bin_op(right, "+", Add::add),
+                    BinOp::Sub => left.bin_op(right, "-", Sub::sub),
+                    _ => unreachable!(),
+                }
+            } else {
+                left
+            },
+        ))
     }
-    fn md_expr(&mut self) -> ParseResult<Option<Value>> {
+    fn try_md_expr(&mut self) -> ParseResult<Option<Value>> {
         let Some(left) = self.try_term()? else {
             return Ok(None);
         };
+        Ok(Some(
+            if let Some(op) = self.next_token_map(|token| match token {
+                Token::BinOp(BinOp::Mul) => Some(BinOp::Mul),
+                Token::BinOp(BinOp::Div) => Some(BinOp::Div),
+                _ => None,
+            }) {
+                let right = self.try_md_expr()?.ok_or(ParseError::Expected("term"))?;
+                match op {
+                    BinOp::Mul => left.bin_op(right, "*", Mul::mul),
+                    BinOp::Div => left.bin_op(right, "/", Div::div),
+                    _ => unreachable!(),
+                }
+            } else {
+                left
+            },
+        ))
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {
@@ -109,27 +152,37 @@ impl Parser {
 #[derive(Clone)]
 enum Value {
     Number(f64),
-    Node(Node),
+    Node(NodeBox),
 }
 
 impl Value {
-    fn bin_op(self, op: BinOp, other: Self) -> Self {
+    fn bin_op(
+        self,
+        other: Self,
+        op_name: &'static str,
+        f: impl Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
+    ) -> Self {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(op.eval(a, b)),
-            (Value::Number(a), Value::Node(b)) => todo!(),
-            (Value::Node(_), Value::Number(_)) => todo!(),
-            (Value::Node(_), Value::Node(_)) => todo!(),
-        }
-    }
-}
-
-impl BinOp {
-    fn eval(self, left: f64, right: f64) -> f64 {
-        match self {
-            BinOp::Add => left + right,
-            BinOp::Sub => left - right,
-            BinOp::Mul => left * right,
-            BinOp::Div => left / right,
+            (Value::Number(a), Value::Number(b)) => Value::Number(f(a, b)),
+            (Value::Number(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a} {op_name} {b:?}"),
+                b,
+                move |b, sample_rate, pos, dir| b.sample(sample_rate, pos, dir).map(|b| f(a, b)),
+            ))),
+            (Value::Node(a), Value::Number(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b}"),
+                a,
+                move |a, sample_rate, pos, dir| a.sample(sample_rate, pos, dir).map(|a| f(a, b)),
+            ))),
+            #[allow(clippy::redundant_closure)]
+            (Value::Node(a), Value::Node(b)) => Value::Node(NodeBox::new(state_node(
+                format!("{a:?} {op_name} {b:?}"),
+                (a, b),
+                move |(a, b), sample_rate, pos, dir| {
+                    a.sample(sample_rate, pos, dir)
+                        .with(b.sample(sample_rate, pos, dir), |a, b| f(a, b))
+                },
+            ))),
         }
     }
 }
