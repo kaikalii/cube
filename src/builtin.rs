@@ -2,9 +2,12 @@ use std::{collections::HashMap, f64::consts::TAU, ops::Add};
 
 use once_cell::sync::Lazy;
 
-use crate::{node::*, parse::Value};
+use crate::{
+    node::*,
+    parse::{ParseResult, Value},
+};
 
-pub type BuiltinFn = dyn Fn(Vec<Value>) -> Value + Send + Sync;
+pub type BuiltinFn = dyn Fn(Vec<Value>) -> ParseResult<Value> + Send + Sync;
 
 type BuiltinFnMap = HashMap<String, HashMap<usize, Box<BuiltinFn>>>;
 
@@ -16,7 +19,7 @@ macro_rules! build_map {
             map.entry(stringify!($name).to_string()).or_default().insert(arg_count, Box::new(|args: Vec<Value>| {
                 let mut args = args.into_iter();
                 $(let $arg = args.next().unwrap();)*
-                $body.into()
+                Ok($body.into())
             }));
         )*
         map
@@ -37,23 +40,7 @@ pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(|| {
         (tri, |freq| Wave3::new("triangle", freq, |pos| {
             pos.map(|x| true_triangle_wave(x, 50)).reduce(Add::add)
         })),
-        (max, |a, b| state_node(
-            "min",
-            (a, b),
-            |(a, b), sr, pos, dir| {
-                let a = a.sample(sr, pos, dir);
-                let b = b.sample(sr, pos, dir);
-                a.with(b, f64::min)
-            }
-        )),
-        (max, |a, b| state_node(
-            "max",
-            (a, b),
-            |(a, b), sr, pos, dir| {
-                let a = a.sample(sr, pos, dir);
-                let b = b.sample(sr, pos, dir);
-                a.with(b, f64::max)
-            }
-        )),
+        (min, |a, b| a.bin_op(b, "min", f64::min)?),
+        (max, |a, b| a.bin_op(b, "max", f64::max)?),
     )
 });

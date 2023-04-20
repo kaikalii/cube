@@ -173,7 +173,7 @@ impl Parser {
                     name: f_name,
                     found: args.len(),
                 })?;
-            f(args)
+            f(args)?
         }))
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
@@ -260,7 +260,7 @@ impl Value {
             Value::BuiltinFn(_) => "builtin function",
         }
     }
-    fn bin_op(
+    pub fn bin_op(
         self,
         other: Self,
         op_name: &'static str,
