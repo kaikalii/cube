@@ -65,7 +65,10 @@ pub fn parse(input: &str) -> ParseResult<Option<NodeBox>> {
             bindings: HashMap::new(),
         }],
     };
-    while parser.item()? {}
+    while parser.try_exact(Token::Newline) {}
+    while parser.item()? {
+        while parser.try_exact(Token::Newline) {}
+    }
     Ok(parser.try_expr()?.map(Value::into_node))
 }
 

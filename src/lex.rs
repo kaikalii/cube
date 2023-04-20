@@ -83,6 +83,7 @@ pub enum Token {
     OpenParen,
     CloseParen,
     Comma,
+    Newline,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +136,7 @@ impl Lexer {
                     ',' => tokens.push(self.end(start, Token::Comma)),
                     '(' => tokens.push(self.end(start, Token::OpenParen)),
                     ')' => tokens.push(self.end(start, Token::CloseParen)),
+                    '\n' => tokens.push(self.end(start, Token::Newline)),
                     '+' => tokens.push(self.end(start, Token::BinOp(BinOp::Add))),
                     '*' => tokens.push(self.end(start, Token::BinOp(BinOp::Mul))),
                     '/' => tokens.push(self.end(start, Token::BinOp(BinOp::Div))),
