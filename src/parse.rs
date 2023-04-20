@@ -33,12 +33,6 @@ struct Scope {
     bindings: HashMap<String, Value>,
 }
 
-#[derive(Clone)]
-enum Value {
-    Number(f64),
-    Node(Node),
-}
-
 impl Parser {
     fn next_token_map<T>(&mut self, f: impl FnOnce(Token) -> Option<T>) -> Option<T> {
         let token = self.tokens.get(self.curr).cloned().and_then(f)?;
@@ -78,6 +72,11 @@ impl Parser {
     fn as_expr(&mut self) -> ParseResult<Option<Value>> {
         todo!()
     }
+    fn md_expr(&mut self) -> ParseResult<Option<Value>> {
+        let Some(left) = self.try_term()? else {
+            return Ok(None);
+        };
+    }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident) {
@@ -104,5 +103,33 @@ impl Parser {
         })
         .map(|num| num.parse().map_err(|_| ParseError::InvalidNumber(num)))
         .transpose()
+    }
+}
+
+#[derive(Clone)]
+enum Value {
+    Number(f64),
+    Node(Node),
+}
+
+impl Value {
+    fn bin_op(self, op: BinOp, other: Self) -> Self {
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => Value::Number(op.eval(a, b)),
+            (Value::Number(a), Value::Node(b)) => todo!(),
+            (Value::Node(_), Value::Number(_)) => todo!(),
+            (Value::Node(_), Value::Node(_)) => todo!(),
+        }
+    }
+}
+
+impl BinOp {
+    fn eval(self, left: f64, right: f64) -> f64 {
+        match self {
+            BinOp::Add => left + right,
+            BinOp::Sub => left - right,
+            BinOp::Mul => left * right,
+            BinOp::Div => left / right,
+        }
     }
 }
