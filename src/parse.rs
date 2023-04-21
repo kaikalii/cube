@@ -203,114 +203,125 @@ impl Parser {
         self.try_as_expr()
     }
     fn try_as_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
-        let Some(left) = self.try_md_expr()? else {
+        let Some(mut left) = self.try_md_expr()? else {
             return Ok(None);
         };
-        Ok(Some(
-            if let Some(op) = self.next_token_map(|token| match token {
-                Token::BinOp(BinOp::Add) => Some(BinOp::Add),
-                Token::BinOp(BinOp::Sub) => Some(BinOp::Sub),
-                _ => None,
-            }) {
-                let right = self.try_as_expr()?.ok_or_else(|| self.expected("term"))?;
-                let span = left.span.union(right.span);
-                span.sp(match op.value {
-                    BinOp::Add => left
-                        .value
-                        .bin_scalar_op(right.value, "+", op.span, Add::add)?,
-                    BinOp::Sub => left
-                        .value
-                        .bin_scalar_op(right.value, "-", op.span, Sub::sub)?,
-                    _ => unreachable!(),
-                })
-            } else {
-                left
-            },
-        ))
+        while let Some(op) = self.next_token_map(|token| match token {
+            Token::BinOp(BinOp::Add) => Some(BinOp::Add),
+            Token::BinOp(BinOp::Sub) => Some(BinOp::Sub),
+            _ => None,
+        }) {
+            let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
+            let span = left.span.union(right.span);
+            left = span.sp(match op.value {
+                BinOp::Add => left
+                    .value
+                    .bin_scalar_op(right.value, "+", op.span, Add::add)?,
+                BinOp::Sub => left
+                    .value
+                    .bin_scalar_op(right.value, "-", op.span, Sub::sub)?,
+                _ => unreachable!(),
+            });
+        }
+        Ok(Some(left))
     }
     fn try_md_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
-        let Some(left) = self.try_set()? else {
+        let Some(mut left) = self.try_set()? else {
             return Ok(None);
         };
-        Ok(Some(
-            if let Some(op) = self.next_token_map(|token| match token {
-                Token::BinOp(BinOp::Mul) => Some(BinOp::Mul),
-                Token::BinOp(BinOp::Div) => Some(BinOp::Div),
-                _ => None,
-            }) {
-                let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
-                let span = left.span.union(right.span);
-                span.sp(match op.value {
-                    BinOp::Mul => left
-                        .value
-                        .bin_scalar_op(right.value, "*", op.span, Mul::mul)?,
-                    BinOp::Div => left
-                        .value
-                        .bin_scalar_op(right.value, "/", op.span, Div::div)?,
-                    _ => unreachable!(),
-                })
-            } else {
-                left
-            },
-        ))
+
+        while let Some(op) = self.next_token_map(|token| match token {
+            Token::BinOp(BinOp::Mul) => Some(BinOp::Mul),
+            Token::BinOp(BinOp::Div) => Some(BinOp::Div),
+            _ => None,
+        }) {
+            let right = self.try_set()?.ok_or_else(|| self.expected("term"))?;
+            let span = left.span.union(right.span);
+            left = span.sp(match op.value {
+                BinOp::Mul => left
+                    .value
+                    .bin_scalar_op(right.value, "*", op.span, Mul::mul)?,
+                BinOp::Div => left
+                    .value
+                    .bin_scalar_op(right.value, "/", op.span, Div::div)?,
+                _ => unreachable!(),
+            });
+        }
+        Ok(Some(left))
     }
     fn try_set(&mut self) -> ParseResult<Option<Sp<Value>>> {
-        let Some(left) = self.try_call()? else {
+        let Some(mut left) = self.try_call()? else {
             return Ok(None);
         };
-        let Some(set_span) = self.try_exact(Token::Colon) else {
-            return Ok(Some(left));
-        };
-        if !matches!(left.value, Value::Args) {
-            return Err(left
-                .span
-                .union(set_span)
-                .sp(ParseError::CannotSet(left.value.type_name())));
-        }
-        let mut indices = self.args()?;
-        let Some(last_arg) = indices.last() else {
-            return Err(self.expected("arguments"));
-        };
-        let full_span = left.span.union(last_arg.span);
-        let value = indices.remove(0);
-        let mut args = self.args_stack.pop().expect("stack empty when setting");
-        for nval in indices {
-            let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
-            if let Some(spot) = args.get_mut(n) {
-                *spot = value.clone();
+        loop {
+            if let Some(set_span) = self.try_exact(Token::Colon) {
+                // Set
+                if !matches!(left.value, Value::Args) {
+                    return Err(left
+                        .span
+                        .union(set_span)
+                        .sp(ParseError::CannotSet(left.value.type_name())));
+                }
+                let mut indices = self.args()?;
+                let Some(last_arg) = indices.last() else {
+                    return Err(self.expected("arguments"));
+                };
+                let full_span = left.span.union(last_arg.span);
+                let value = indices.remove(0);
+                let mut args = self.args_stack.pop().expect("stack empty when setting");
+                for nval in indices {
+                    let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
+                    if let Some(spot) = args.get_mut(n) {
+                        *spot = value.clone();
+                    } else {
+                        return Err(nval.span.sp(ParseError::IndexOutOfBounds {
+                            index: n,
+                            len: args.len(),
+                        }));
+                    }
+                }
+                self.args_stack.push(args);
+                left = full_span.sp(Value::Args);
+            } else if let Some(mod_span) = self.try_exact(Token::DoubleColon) {
+                // Modify
+                if !matches!(left.value, Value::Args) {
+                    return Err(left
+                        .span
+                        .union(mod_span)
+                        .sp(ParseError::CannotSet(left.value.type_name())));
+                }
+                let mut indices = self.args()?;
+                let Some(last_arg) = indices.last() else {
+                    return Err(self.expected("arguments"));
+                };
+                let full_span = left.span.union(last_arg.span);
+                let f_val = indices.remove(0);
+                let mut args = self.args_stack.pop().expect("stack empty when modifying");
+                for nval in indices {
+                    let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
+                    if let Some(value) = args.get_mut(n) {
+                        *value = call(f_val.clone(), vec![value.clone()], &mut self.args_stack)?;
+                    } else {
+                        return Err(nval.span.sp(ParseError::IndexOutOfBounds {
+                            index: n,
+                            len: args.len(),
+                        }));
+                    }
+                }
+                self.args_stack.push(args);
+                left = full_span.sp(Value::Args);
             } else {
-                return Err(nval.span.sp(ParseError::IndexOutOfBounds {
-                    index: n,
-                    len: args.len(),
-                }));
+                break;
             }
         }
-        self.args_stack.push(args);
-        Ok(Some(full_span.sp(Value::Args)))
+        Ok(Some(left))
     }
     fn try_call(&mut self) -> ParseResult<Option<Sp<Value>>> {
         let Some(term) = self.try_term()? else {
             return Ok(None);
         };
-        let f_span = self.last_span();
         let args = self.args()?;
-        let f_name = match term.value {
-            Value::BuiltinFn(name) => name,
-            _ if args.is_empty() => return Ok(Some(term)),
-            value => {
-                return Err(self
-                    .last_span()
-                    .sp(ParseError::CannotCall(value.type_name())))
-            }
-        };
-        let (arg_count, f) = &BUILTINS[&f_name];
-        if !arg_count.matches(args.len()) {
-            return Err(f_span.sp(ParseError::WrongNumberOfArguments {
-                name: f_name,
-                found: args.len(),
-            }));
-        }
-        Ok(Some(f_span.sp(f(args, f_span, &mut self.args_stack)?)))
+        call(term, args, &mut self.args_stack).map(Some)
     }
     fn args(&mut self) -> ParseResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
@@ -369,4 +380,24 @@ impl Parser {
         })
         .transpose()
     }
+}
+
+fn call(
+    f_val: Sp<Value>,
+    args: Vec<Sp<Value>>,
+    stack: &mut Vec<Vec<Sp<Value>>>,
+) -> ParseResult<Sp<Value>> {
+    let f_name = match f_val.value {
+        Value::BuiltinFn(name) => name,
+        _ if args.is_empty() => return Ok(f_val),
+        value => return Err(f_val.span.sp(ParseError::CannotCall(value.type_name()))),
+    };
+    let (arg_count, f) = &BUILTINS[&f_name];
+    if !arg_count.matches(args.len()) {
+        return Err(f_val.span.sp(ParseError::WrongNumberOfArguments {
+            name: f_name,
+            found: args.len(),
+        }));
+    }
+    Ok(f_val.span.sp(f(args, f_val.span, stack)?))
 }

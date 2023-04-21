@@ -87,6 +87,7 @@ pub enum Token {
     BinOp(BinOp),
     Dollar,
     Colon,
+    DoubleColon,
     Equals,
     OpenParen,
     CloseParen,
@@ -139,17 +140,18 @@ impl Lexer {
         loop {
             let start = self.loc;
             if let Some(c) = self.next_char() {
-                match c {
-                    '=' => tokens.push(self.end(start, Token::Equals)),
-                    ',' => tokens.push(self.end(start, Token::Comma)),
-                    '(' => tokens.push(self.end(start, Token::OpenParen)),
-                    ')' => tokens.push(self.end(start, Token::CloseParen)),
-                    '\n' => tokens.push(self.end(start, Token::Newline)),
-                    '$' => tokens.push(self.end(start, Token::Dollar)),
-                    ':' => tokens.push(self.end(start, Token::Colon)),
-                    '+' => tokens.push(self.end(start, Token::BinOp(BinOp::Add))),
-                    '*' => tokens.push(self.end(start, Token::BinOp(BinOp::Mul))),
-                    '/' => tokens.push(self.end(start, Token::BinOp(BinOp::Div))),
+                tokens.push(match c {
+                    '=' => self.end(start, Token::Equals),
+                    ',' => self.end(start, Token::Comma),
+                    '(' => self.end(start, Token::OpenParen),
+                    ')' => self.end(start, Token::CloseParen),
+                    '\n' => self.end(start, Token::Newline),
+                    '$' => self.end(start, Token::Dollar),
+                    ':' if self.next_char_exact(':') => self.end(start, Token::DoubleColon),
+                    ':' => self.end(start, Token::Colon),
+                    '+' => self.end(start, Token::BinOp(BinOp::Add)),
+                    '*' => self.end(start, Token::BinOp(BinOp::Mul)),
+                    '/' => self.end(start, Token::BinOp(BinOp::Div)),
                     c if c.is_ascii_digit() || c == '-' => {
                         let mut num = c.to_string();
                         while let Some(c) = self.next_char_if(|c| c.is_ascii_digit()) {
@@ -161,14 +163,14 @@ impl Lexer {
                                 num.push(c);
                             }
                         }
-                        tokens.push(self.end(
+                        self.end(
                             start,
                             if num == "-" {
                                 Token::BinOp(BinOp::Sub)
                             } else {
                                 Token::Number(num)
                             },
-                        ))
+                        )
                     }
                     c if is_ident_char(c) => {
                         let mut ident = c.to_string();
@@ -177,9 +179,9 @@ impl Lexer {
                         {
                             ident.push(c);
                         }
-                        tokens.push(self.end(start, Token::Ident(ident)));
+                        self.end(start, Token::Ident(ident))
                     }
-                    c if c.is_whitespace() => {}
+                    c if c.is_whitespace() => continue,
                     c => {
                         return Err(Span {
                             start,
@@ -187,7 +189,7 @@ impl Lexer {
                         }
                         .sp(c))
                     }
-                }
+                })
             } else {
                 break;
             }
