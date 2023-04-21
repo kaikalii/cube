@@ -41,6 +41,10 @@ pub enum ParseError {
     },
     ExpectedNumber(&'static str),
     ExpectedVector(&'static str),
+    IndexOutOfBounds {
+        index: usize,
+        len: usize,
+    },
 }
 
 impl fmt::Display for ParseError {
@@ -62,6 +66,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
             ParseError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
+            ParseError::IndexOutOfBounds { index, len } => {
+                write!(f, "Index {index} out of bounds for length {len}")
+            }
         }
     }
 }
@@ -76,6 +83,7 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         scopes: vec![Scope {
             bindings: HashMap::new(),
         }],
+        args_stack: Vec::new(),
     };
     while parser.try_exact(Token::Newline) {}
     while parser.item()? {
@@ -118,6 +126,7 @@ struct Parser {
     tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
+    args_stack: Vec<Vec<Value>>,
 }
 
 struct Scope {
@@ -240,7 +249,12 @@ impl Parser {
         let f_span = self.last_span();
         let mut args = Vec::new();
         while let Some(arg) = self.try_term()? {
-            args.push(arg);
+            match arg {
+                Value::Args => {
+                    args.extend(self.args_stack.pop().unwrap());
+                }
+                arg => args.push(arg),
+            }
         }
         let f_name = match term {
             Value::BuiltinFn(name) => name,
@@ -258,7 +272,7 @@ impl Parser {
                 found: args.len(),
             }));
         }
-        f(args, f_span).map(Some)
+        f(args, f_span, &mut self.args_stack).map(Some)
     }
     fn try_term(&mut self) -> ParseResult<Option<Value>> {
         Ok(Some(if let Some(ident) = self.ident() {

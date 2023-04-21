@@ -15,6 +15,8 @@ fn main() {
     let input = fs::read_to_string("test.cube").unwrap();
     match parse(&input) {
         Ok(cube) => {
+            println!("{:?}", cube.root);
+
             let mut output = OutputDeviceMixer::<Mono>::with_default_device().unwrap();
 
             let source = NodeSource {
