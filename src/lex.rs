@@ -103,6 +103,10 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Lt,
+    Le,
+    Gt,
+    Ge,
 }
 
 struct Lexer {
@@ -156,6 +160,10 @@ impl Lexer {
                     '+' => self.end(start, Token::BinOp(BinOp::Add)),
                     '*' => self.end(start, Token::BinOp(BinOp::Mul)),
                     '/' => self.end(start, Token::BinOp(BinOp::Div)),
+                    '<' if self.next_char_exact('=') => self.end(start, Token::BinOp(BinOp::Le)),
+                    '<' => self.end(start, Token::BinOp(BinOp::Lt)),
+                    '>' if self.next_char_exact('=') => self.end(start, Token::BinOp(BinOp::Ge)),
+                    '>' => self.end(start, Token::BinOp(BinOp::Gt)),
                     c if c.is_ascii_digit() || c == '-' => {
                         if self.next_char_exact('-') {
                             while self.next_char_if(|c| c != '\n').is_some() {}

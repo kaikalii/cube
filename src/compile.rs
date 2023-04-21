@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     fmt,
     ops::{Add, Div, Mul, Sub},
@@ -228,7 +229,7 @@ impl Compiler {
         Ok(Some(left))
     }
     fn try_md_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_set()? else {
+        let Some(mut left) = self.try_cmp_op()? else {
             return Ok(None);
         };
 
@@ -237,7 +238,7 @@ impl Compiler {
             Token::BinOp(BinOp::Div) => Some(BinOp::Div),
             _ => None,
         }) {
-            let right = self.try_set()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.try_cmp_op()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.value {
                 BinOp::Mul => left
@@ -246,6 +247,50 @@ impl Compiler {
                 BinOp::Div => left
                     .value
                     .bin_scalar_op(right.value, "/", op.span, Div::div)?,
+                _ => unreachable!(),
+            });
+        }
+        Ok(Some(left))
+    }
+    fn try_cmp_op(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        let Some(mut left) = self.try_set()? else {
+            return Ok(None);
+        };
+
+        while let Some(op) = self.next_token_map(|token| match token {
+            Token::BinOp(BinOp::Le) => Some(BinOp::Le),
+            Token::BinOp(BinOp::Lt) => Some(BinOp::Lt),
+            Token::BinOp(BinOp::Ge) => Some(BinOp::Ge),
+            Token::BinOp(BinOp::Gt) => Some(BinOp::Gt),
+            _ => None,
+        }) {
+            let right = self.try_set()?.ok_or_else(|| self.expected("term"))?;
+            let span = left.span.union(right.span);
+            fn cmp(a: f64, b: f64) -> Ordering {
+                a.partial_cmp(&b)
+                    .unwrap_or_else(|| a.is_nan().cmp(&b.is_nan()))
+            }
+            left = span.sp(match op.value {
+                BinOp::Le => left
+                    .value
+                    .bin_scalar_op(right.value, "<=", op.span, |a, b| {
+                        (cmp(a, b) == Ordering::Less) as u8 as f64
+                    })?,
+                BinOp::Lt => left
+                    .value
+                    .bin_scalar_op(right.value, "<", op.span, |a, b| {
+                        (cmp(a, b) != Ordering::Greater) as u8 as f64
+                    })?,
+                BinOp::Ge => left
+                    .value
+                    .bin_scalar_op(right.value, ">=", op.span, |a, b| {
+                        (cmp(a, b) == Ordering::Greater) as u8 as f64
+                    })?,
+                BinOp::Gt => left
+                    .value
+                    .bin_scalar_op(right.value, ">", op.span, |a, b| {
+                        (cmp(a, b) != Ordering::Less) as u8 as f64
+                    })?,
                 _ => unreachable!(),
             });
         }

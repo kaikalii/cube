@@ -378,27 +378,33 @@ make_builtin_fns!(
         Value::Args(selected)
     }),
     (args, |(args)| { Value::Args(args) }),
-    (gx, |x| state_node("gx", x, move |x, env| {
+    /// Check if the current x position is greater than a value
+    (gtx, |x| state_node("gtx", x, move |x, env| {
         let x = x.sample(env).x;
         Vector::splat((x >= env.pos.x) as u8 as f64)
     })),
-    (gy, |y| state_node("gy", y, move |y, env| {
+    /// Check if the current y position is greater than a value
+    (gty, |y| state_node("gty", y, move |y, env| {
         let y = y.sample(env).y;
         Vector::splat((y >= env.pos.y) as u8 as f64)
     })),
-    (gz, |z| state_node("gz", z, move |z, env| {
+    /// Check if the current z position is greater than a value
+    (gtz, |z| state_node("gtz", z, move |z, env| {
         let z = z.sample(env).z;
         Vector::splat((z >= env.pos.z) as u8 as f64)
     })),
-    (lx, |x| state_node("lx", x, move |x, env| {
+    /// Check if the current x position is less than a value
+    (ltx, |x| state_node("ltx", x, move |x, env| {
         let x = x.sample(env).x;
         Vector::splat((x < env.pos.x) as u8 as f64)
     })),
-    (ly, |y| state_node("ly", y, move |y, env| {
+    /// Check if the current y position is less than a value
+    (lty, |y| state_node("lty", y, move |y, env| {
         let y = y.sample(env).y;
         Vector::splat((y < env.pos.y) as u8 as f64)
     })),
-    (lz, |z| state_node("lz", z, move |z, env| {
+    /// Check if the current z position is less than a value
+    (ltz, |z| state_node("ltz", z, move |z, env| {
         let z = z.sample(env).z;
         Vector::splat((z < env.pos.z) as u8 as f64)
     })),
