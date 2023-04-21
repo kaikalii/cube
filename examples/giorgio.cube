@@ -1,6 +1,5 @@
 snare = noise * sec 0 (beat 4) $ 8::0 :1 4
 riff = args 1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0
-riff2 = args 1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0
 Anotes = sel riff | A2 A3 B3 C4 E4
 Enotes = sel riff | E2 E3 F#3 G3 B3
 Fnotes = sel riff | F2 F3 G3 A3 C4

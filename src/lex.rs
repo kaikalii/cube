@@ -157,6 +157,10 @@ impl Lexer {
                     '*' => self.end(start, Token::BinOp(BinOp::Mul)),
                     '/' => self.end(start, Token::BinOp(BinOp::Div)),
                     c if c.is_ascii_digit() || c == '-' => {
+                        if self.next_char_exact('-') {
+                            while self.next_char_if(|c| c != '\n').is_some() {}
+                            continue;
+                        }
                         let mut num = c.to_string();
                         while let Some(c) = self.next_char_if(|c| c.is_ascii_digit()) {
                             num.push(c);
