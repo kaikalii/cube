@@ -69,27 +69,35 @@ impl Node for NodeBox {
 pub struct Wave3 {
     pub name: &'static str,
     pub one_hz: Arc<dyn Fn(Vector) -> Vector + Send + Sync>,
-    pub freq: NodeBox,
-    pub pos: Vector,
+    pub freqs: Vec<(NodeBox, Vector)>,
 }
 
 impl fmt::Debug for Wave3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} hz {} wave", self.freq, self.name)
+        for freq in &self.freqs {
+            write!(f, "{freq:?} ")?;
+        }
+        write!(f, "hz {} wave", self.name)
     }
 }
 
 impl Wave3 {
-    pub fn new(
+    pub fn new<I>(
         name: &'static str,
-        freq: impl Node + 'static,
+        freq: I,
         one_hz: impl Fn(Vector) -> Vector + Send + Sync + 'static,
-    ) -> Self {
+    ) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Node,
+    {
         Self {
             name,
             one_hz: Arc::new(one_hz),
-            freq: freq.boxed(),
-            pos: Vector::ZERO,
+            freqs: freq
+                .into_iter()
+                .map(|n| (n.boxed(), Vector::ZERO))
+                .collect(),
         }
     }
 }
@@ -99,9 +107,13 @@ impl Node for Wave3 {
         NodeBox::new(self.clone())
     }
     fn sample(&mut self, env: &Env) -> Vector {
-        let sample = (self.one_hz)(self.pos);
-        self.pos += env.dir * (self.freq.sample(env) / env.sample_rate);
-        sample
+        let mut sample = Vector::ZERO;
+        for (freq, pos) in &mut self.freqs {
+            let freq = freq.sample(env);
+            sample += (self.one_hz)(*pos);
+            *pos += env.dir * (freq / env.sample_rate);
+        }
+        sample / self.freqs.len() as f64
     }
 }
 

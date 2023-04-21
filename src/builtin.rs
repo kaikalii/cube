@@ -23,6 +23,7 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "PI" => PI.into(),
         "TAU" => TAU.into(),
         "E" => E.into(),
+        "INF" => f64::INFINITY.into(),
         "noise" => noise_node().into(),
         "m2" => 2f64.powf(2.0 / 12.0).into(),
         "b3" => 2f64.powf(3.0 / 12.0).into(),
@@ -175,35 +176,51 @@ make_builtin_fns!(
     (div, sp, |a, b| a
         .bin_scalar_op(b, "div", sp, |a, b| a / b)?),
     /// Generate a sine wave from a frequency
-    (sin, |freq| Wave3::new("sine", freq, |pos| {
-        pos.map(|x| (x * TAU).sin())
-    })),
+    (sin, |(freqs)| Wave3::new(
+        "sine",
+        freqs.into_iter().map(|v| v.value),
+        |pos| { pos.map(|x| (x * TAU).sin()) }
+    )),
     /// Generate a square wave from a frequency
-    (square, |freq| Wave3::new("square", freq, |pos| pos
-        .map(square_wave))),
+    (square, |(freqs)| Wave3::new(
+        "square",
+        freqs.into_iter().map(|v| v.value),
+        |pos| pos.map(square_wave)
+    )),
     /// Generate a saw wave from a frequency
-    (saw, |freq| Wave3::new("saw", freq, |pos| pos.map(saw_wave))),
+    (saw, |(freqs)| Wave3::new(
+        "saw",
+        freqs.into_iter().map(|v| v.value),
+        |pos| pos.map(saw_wave)
+    )),
     /// Generate a triangle wave from a frequency
-    (tri, |freq| Wave3::new("triangle", freq, |pos| pos
-        .map(triangle_wave))),
+    (tri, |(freqs)| Wave3::new(
+        "triangle",
+        freqs.into_iter().map(|v| v.value),
+        |pos| pos.map(triangle_wave)
+    )),
     /// Generate an additive square wave from a frequency and number of harmonics
-    (hsquare, span, |n, freq| {
+    (hsquare, span, |n, (freqs)| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new("hsquare", freq, move |pos| {
+        Wave3::new("hsquare", freqs.into_iter().map(|v| v.value), move |pos| {
             pos.map(|x| true_square_wave(x, n))
         })
     }),
     /// Generate an additive saw wave from a frequency and number of harmonics
-    (hsaw, span, |n, freq| {
+    (hsaw, span, |n, (freqs)| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new("hsaw", freq, move |pos| pos.map(|x| true_saw_wave(x, n)))
+        Wave3::new("hsaw", freqs.into_iter().map(|v| v.value), move |pos| {
+            pos.map(|x| true_saw_wave(x, n))
+        })
     }),
     /// Generate an additive triangle wave from a frequency and number of harmonics
-    (htri, span, |n, freq| {
+    (htri, span, |n, (freqs)| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new("htriangle", freq, move |pos| {
-            pos.map(|x| true_triangle_wave(x, n))
-        })
+        Wave3::new(
+            "htriangle",
+            freqs.into_iter().map(|v| v.value),
+            move |pos| pos.map(|x| true_triangle_wave(x, n)),
+        )
     }),
     /// Generate kick drum sound
     (
