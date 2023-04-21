@@ -136,11 +136,11 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-pub trait NodeFn<S>: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
+pub trait NodeFn<S = ()>: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
 
 impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
 
-pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn<()>> {
+pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn> {
     GenericNode {
         name: n.to_string(),
         state: (),
@@ -148,11 +148,22 @@ pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn<()>> {
     }
 }
 
-pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn<()>> {
+pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn> {
     GenericNode {
         name: v.to_string(),
         state: (),
         f: move |_: &mut (), _: &Env| v,
+    }
+}
+
+pub fn pure_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn>
+where
+    F: Fn(&Env) -> Vector + Clone + Send + Sync + 'static,
+{
+    GenericNode {
+        name: name.into(),
+        state: (),
+        f: move |_: &mut (), env: &Env| f(env),
     }
 }
 
@@ -238,12 +249,14 @@ pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
     ((time % period).powf(falloff) * freq * TAU).sin()
 }
 
-pub fn noise_node() -> GenericNode<impl NodeFn<SmallRng>, SmallRng> {
-    state_node(
-        "noise",
-        SmallRng::from_entropy(),
-        |rng: &mut SmallRng, _: &Env| Vector::new(rng.gen(), rng.gen(), rng.gen()),
-    )
+pub fn noise_node() -> GenericNode<impl NodeFn> {
+    pure_node("noise", |env: &Env| {
+        Vector::new(
+            SmallRng::seed_from_u64(env.pos.x.to_bits()).gen(),
+            SmallRng::seed_from_u64(env.pos.y.to_bits()).gen(),
+            SmallRng::seed_from_u64(env.pos.z.to_bits()).gen(),
+        )
+    })
 }
 
 pub struct NodeSource {

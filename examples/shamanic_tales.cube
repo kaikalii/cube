@@ -1,8 +1,8 @@
-hh = 0.3 * noise * X * sec 0 (beat 16) 1 0 0 0
-snare = noise * X * sec 0 (beat 4) $ 8::0 :1 4
+hh = 0.3 noise sec 0 (beat 16) 1 0 0 0
+snare = noise sec 0 (beat 4) $ 8::0 :1 4
 f = 51.91
 baseline_notes = sec 0 (beat 4) $ 8::f ;b7 3 ;p8 6
-baseline = (max 0 $ 0.3 + 0.7 * saw (perbeat 4)) * saw baseline_notes
-melody = 0.5 * tri (f * 8) * sec 0 (beat 4) $ 16::0 :1 8 10
+baseline = (max 0 $ 0.3 + 0.7 saw (perbeat 4)) saw baseline_notes
+melody = 0.5 tri (8 f) * sec 0 (beat 4) $ 16::0 :1 8 10
 tempo = 128
 kick (perbeat 1) + hh + snare + baseline + melody

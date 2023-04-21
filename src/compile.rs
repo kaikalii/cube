@@ -35,7 +35,6 @@ pub enum CompileError {
         b: &'static str,
         op: &'static str,
     },
-    CannotCall(&'static str),
     WrongNumberOfArguments {
         name: String,
         found: usize,
@@ -63,7 +62,6 @@ impl fmt::Display for CompileError {
             CompileError::InvalidBinaryOperation { a, b, op } => {
                 write!(f, "Invalid operation: {} {} {}", a, op, b)
             }
-            CompileError::CannotCall(name) => write!(f, "Cannot call {name}"),
             CompileError::WrongNumberOfArguments { name, found } => {
                 write!(f, "No variant of {name} takes {found} arguments")
             }
@@ -393,11 +391,20 @@ impl Compiler {
     }
 }
 
-fn call(f_val: Sp<Value>, args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
+fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
     let f_name = match f_val.value {
         Value::BuiltinFn(name) => name,
-        _ if args.is_empty() => return Ok(f_val),
-        value => return Err(f_val.span.sp(CompileError::CannotCall(value.type_name()))),
+        _ => {
+            let mut value = f_val.value;
+            let mut span = f_val.span;
+            if !args.is_empty() {
+                let b = args.remove(0);
+                span = span.union(b.span);
+                let b = call(b, args)?;
+                value = value.bin_scalar_op(b.value, "*", b.span, |a, b| a * b)?;
+            }
+            return Ok(span.sp(value));
+        }
     };
     let (arg_count, f) = &BUILTINS[&f_name];
     if !arg_count.matches(args.len()) {

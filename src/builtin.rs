@@ -24,6 +24,15 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "TAU" => TAU.into(),
         "E" => E.into(),
         "noise" => noise_node().into(),
+        "m2" => 2f64.powf(2.0 / 12.0).into(),
+        "b3" => 2f64.powf(3.0 / 12.0).into(),
+        "m3" => 2f64.powf(4.0 / 12.0).into(),
+        "p4" => 2f64.powf(5.0 / 12.0).into(),
+        "p5" => 2f64.powf(7.0 / 12.0).into(),
+        "m6" => 2f64.powf(9.0 / 12.0).into(),
+        "b7" => 2f64.powf(10.0 / 12.0).into(),
+        "m7" => 2f64.powf(11.0 / 12.0).into(),
+        "p8" => 2.0.into(),
         name => {
             let (letter, octave) = parse_note(name)?;
             letter.frequency(octave).into()
@@ -292,23 +301,6 @@ make_builtin_fns!(
     (beats, |n| {
         state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq())
     }),
-    (m2, sp, |x| x
-        .un_scalar_op("m2", sp, |x| x * 2f64.powf(2.0 / 12.0))?),
-    (b3, sp, |x| x
-        .un_scalar_op("b3", sp, |x| x * 2f64.powf(3.0 / 12.0))?),
-    (m3, sp, |x| x
-        .un_scalar_op("m3", sp, |x| x * 2f64.powf(4.0 / 12.0))?),
-    (p4, sp, |x| x
-        .un_scalar_op("p4", sp, |x| x * 2f64.powf(5.0 / 12.0))?),
-    (p5, sp, |x| x
-        .un_scalar_op("p5", sp, |x| x * 2f64.powf(7.0 / 12.0))?),
-    (m6, sp, |x| x
-        .un_scalar_op("m6", sp, |x| x * 2f64.powf(9.0 / 12.0))?),
-    (b7, sp, |x| x
-        .un_scalar_op("b7", sp, |x| x * 2f64.powf(10.0 / 12.0))?),
-    (m7, sp, |x| x
-        .un_scalar_op("m7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
-    (p8, sp, |x| x.un_scalar_op("p8", sp, |x| x * 2.0)?),
     /// Create looping sections from some values
     ///
     /// With an offset at `offset`, each section will be played for the `period`.
