@@ -1,2 +1,2 @@
-- Simplify sequencing
-- Named notes
+- Selection
+- Comments

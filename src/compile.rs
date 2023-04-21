@@ -17,6 +17,7 @@ pub struct Cube {
     pub initial_pos: Vector,
     pub initial_dir: Vector,
     pub tempo: f64,
+    pub octave: i8,
 }
 
 #[derive(Debug)]
@@ -121,6 +122,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         initial_pos,
         initial_dir,
         tempo,
+        octave: 3,
     })
 }
 

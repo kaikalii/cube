@@ -3,6 +3,7 @@ use std::{
     f64::consts::{E, PI, TAU},
 };
 
+use hodaun::{Letter, Octave};
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -23,8 +24,40 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "TAU" => TAU.into(),
         "E" => E.into(),
         "noise" => noise_node().into(),
-        _ => return None,
+        name => {
+            let (letter, octave) = parse_note(name)?;
+            letter.frequency(octave).into()
+        }
     })
+}
+
+fn parse_note(name: &str) -> Option<(Letter, Octave)> {
+    if !name.ends_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    };
+    let octave: Octave = name[name.len() - 1..].parse().unwrap();
+    let letter = &name[..name.len() - 1];
+    let letter = match letter {
+        "A" => Letter::A,
+        "Ab" => Letter::Ab,
+        "A#" => Letter::Ash,
+        "B" => Letter::B,
+        "Bb" => Letter::Bb,
+        "C" => Letter::C,
+        "C#" => Letter::Csh,
+        "D" => Letter::D,
+        "Db" => Letter::Db,
+        "D#" => Letter::Dsh,
+        "E" => Letter::E,
+        "Eb" => Letter::Eb,
+        "F" => Letter::F,
+        "F#" => Letter::Fsh,
+        "G" => Letter::G,
+        "Gb" => Letter::Gb,
+        "G#" => Letter::Gsh,
+        _ => return None,
+    };
+    Some((letter, octave))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
