@@ -7,7 +7,7 @@ use hodaun::{Letter, Octave};
 use once_cell::sync::Lazy;
 
 use crate::{
-    compile::CompileResult,
+    compile::{CompileError, CompileResult},
     lex::{Sp, Span},
     node::*,
     value::Value,
@@ -155,6 +155,7 @@ macro_rules! make_builtin_fns {
         }
     };
 }
+
 make_builtin_fns!(
     (add, sp, |a, b| a
         .bin_scalar_op(b, "add", sp, |a, b| a + b)?),
@@ -177,19 +178,19 @@ make_builtin_fns!(
     (tri, |freq| Wave3::new("triangle", freq, |pos| pos
         .map(triangle_wave))),
     /// Generate an additive square wave from a frequency and number of harmonics
-    (hsquare, span, |freq, #[default(100)] n| {
+    (hsquare, span, |n, freq| {
         let n = n.expect_number("n", span)? as usize;
         Wave3::new("hsquare", freq, move |pos| {
             pos.map(|x| true_square_wave(x, n))
         })
     }),
     /// Generate an additive saw wave from a frequency and number of harmonics
-    (hsaw, span, |freq, #[default(100)] n| {
+    (hsaw, span, |n, freq| {
         let n = n.expect_number("n", span)? as usize;
         Wave3::new("hsaw", freq, move |pos| pos.map(|x| true_saw_wave(x, n)))
     }),
     /// Generate an additive triangle wave from a frequency and number of harmonics
-    (htri, span, |freq, #[default(100)] n| {
+    (htri, span, |n, freq| {
         let n = n.expect_number("n", span)? as usize;
         Wave3::new("htriangle", freq, move |pos| {
             pos.map(|x| true_triangle_wave(x, n))
@@ -283,6 +284,23 @@ make_builtin_fns!(
     (beats, |n| {
         state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq())
     }),
+    (m2, sp, |x| x
+        .un_scalar_op("m2", sp, |x| x * 2f64.powf(2.0 / 12.0))?),
+    (b3, sp, |x| x
+        .un_scalar_op("b3", sp, |x| x * 2f64.powf(3.0 / 12.0))?),
+    (m3, sp, |x| x
+        .un_scalar_op("m3", sp, |x| x * 2f64.powf(4.0 / 12.0))?),
+    (p4, sp, |x| x
+        .un_scalar_op("p4", sp, |x| x * 2f64.powf(5.0 / 12.0))?),
+    (p5, sp, |x| x
+        .un_scalar_op("p5", sp, |x| x * 2f64.powf(7.0 / 12.0))?),
+    (m6, sp, |x| x
+        .un_scalar_op("m6", sp, |x| x * 2f64.powf(9.0 / 12.0))?),
+    (b7, sp, |x| x
+        .un_scalar_op("b7", sp, |x| x * 2f64.powf(10.0 / 12.0))?),
+    (m7, sp, |x| x
+        .un_scalar_op("m7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
+    (p8, sp, |x| x.un_scalar_op("p8", sp, |x| x * 2.0)?),
     /// Create looping sections from some values
     ///
     /// With an offset at `offset`, each section will be played for the `period`.
@@ -321,23 +339,22 @@ make_builtin_fns!(
             Vector::new(x, y, z)
         })
     }),
-    (m2, sp, |x| x
-        .un_scalar_op("m2", sp, |x| x * 2f64.powf(2.0 / 12.0))?),
-    (b3, sp, |x| x
-        .un_scalar_op("b3", sp, |x| x * 2f64.powf(3.0 / 12.0))?),
-    (m3, sp, |x| x
-        .un_scalar_op("m3", sp, |x| x * 2f64.powf(4.0 / 12.0))?),
-    (p4, sp, |x| x
-        .un_scalar_op("p4", sp, |x| x * 2f64.powf(5.0 / 12.0))?),
-    (p5, sp, |x| x
-        .un_scalar_op("p5", sp, |x| x * 2f64.powf(7.0 / 12.0))?),
-    (m6, sp, |x| x
-        .un_scalar_op("m6", sp, |x| x * 2f64.powf(9.0 / 12.0))?),
-    (b7, sp, |x| x
-        .un_scalar_op("b7", sp, |x| x * 2f64.powf(10.0 / 12.0))?),
-    (m7, sp, |x| x
-        .un_scalar_op("m7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
-    (p8, sp, |x| x.un_scalar_op("p8", sp, |x| x * 2.0)?),
+    (sel, span, |indices, values| {
+        let indices = indices.expect_args("indices", span)?;
+        let values = values.expect_args("values", span)?;
+        let mut selected = Vec::with_capacity(indices.len());
+        for index in indices {
+            let index = index.value.expect_natural("index", span)?;
+            let value = values.get(index).cloned().ok_or_else(|| {
+                span.sp(CompileError::IndexOutOfBounds {
+                    index,
+                    len: values.len(),
+                })
+            })?;
+            selected.push(value);
+        }
+        Value::Args(selected)
+    }),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

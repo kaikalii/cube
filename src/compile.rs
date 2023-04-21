@@ -40,8 +40,10 @@ pub enum CompileError {
         name: String,
         found: usize,
     },
+    ExpectedNatural(&'static str),
     ExpectedNumber(&'static str),
     ExpectedVector(&'static str),
+    ExpectedArgs(&'static str),
     IndexOutOfBounds {
         index: usize,
         len: usize,
@@ -66,8 +68,12 @@ impl fmt::Display for CompileError {
             CompileError::WrongNumberOfArguments { name, found } => {
                 write!(f, "No variant of {name} takes {found} arguments")
             }
+            CompileError::ExpectedNatural(name) => {
+                write!(f, "Expected {name} to be a natural number")
+            }
             CompileError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
             CompileError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
+            CompileError::ExpectedArgs(name) => write!(f, "Expected {name} to be args"),
             CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
@@ -260,7 +266,7 @@ impl Compiler {
                     .try_call()?
                     .ok_or_else(|| self.expected("expression"))?;
                 let full_span = left.span.union(value.span);
-                let n = left.value.expect_number("fill count", left.span)?.abs() as usize;
+                let n = left.value.expect_natural("fill count", left.span)?;
                 let args = vec![value; n];
                 left = full_span.sp(Value::Args(args));
             } else if let Some(set_span) = self.try_exact(Token::Colon) {
@@ -278,7 +284,7 @@ impl Compiler {
                 let full_span = left.span.union(last_arg.span);
                 let value = indices.remove(0);
                 for nval in indices {
-                    let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
+                    let n = nval.value.expect_natural("index", nval.span)?;
                     if let Some(spot) = args.get_mut(n) {
                         *spot = value.clone();
                     } else {
@@ -304,7 +310,7 @@ impl Compiler {
                 let full_span = left.span.union(last_arg.span);
                 let f_val = indices.remove(0);
                 for nval in indices {
-                    let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
+                    let n = nval.value.expect_natural("index", nval.span)?;
                     if let Some(value) = args.get_mut(n) {
                         *value = call(f_val.clone(), vec![value.clone()])?;
                     } else {

@@ -68,6 +68,12 @@ impl Value {
             Value::Args(_) => "args",
         }
     }
+    pub fn expect_natural(&self, name: &'static str, span: Span) -> CompileResult<usize> {
+        match self {
+            Value::Number(n) if *n >= 0.0 && n.fract() == 0.0 => Ok(*n as usize),
+            _ => Err(span.sp(CompileError::ExpectedNatural(name))),
+        }
+    }
     pub fn expect_number(&self, name: &'static str, span: Span) -> CompileResult<f64> {
         match self {
             Value::Number(n) => Ok(*n),
@@ -79,6 +85,12 @@ impl Value {
             Value::Number(n) => Ok(Vector::splat(*n)),
             Value::Vector(v) => Ok(*v),
             _ => Err(span.sp(CompileError::ExpectedVector(name))),
+        }
+    }
+    pub fn expect_args(self, name: &'static str, span: Span) -> CompileResult<Vec<Sp<Self>>> {
+        match self {
+            Value::Args(args) => Ok(args),
+            _ => Err(span.sp(CompileError::ExpectedArgs(name))),
         }
     }
     pub fn un_scalar_op(
