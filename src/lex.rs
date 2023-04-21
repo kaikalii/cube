@@ -12,11 +12,11 @@ pub fn lex(input: &str) -> Result<Vec<Sp<Token>>, Sp<char>> {
     .lex()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Loc {
+    pub pos: usize,
     pub line: usize,
     pub col: usize,
-    pub pos: usize,
 }
 
 impl fmt::Display for Loc {
@@ -52,6 +52,12 @@ impl Span {
     pub fn sp<T>(self, value: T) -> Sp<T> {
         Sp { value, span: self }
     }
+    pub fn union(self, other: Span) -> Span {
+        Span {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +86,7 @@ pub enum Token {
     Number(String),
     BinOp(BinOp),
     Dollar,
+    Colon,
     Equals,
     OpenParen,
     CloseParen,
@@ -139,6 +146,7 @@ impl Lexer {
                     ')' => tokens.push(self.end(start, Token::CloseParen)),
                     '\n' => tokens.push(self.end(start, Token::Newline)),
                     '$' => tokens.push(self.end(start, Token::Dollar)),
+                    ':' => tokens.push(self.end(start, Token::Colon)),
                     '+' => tokens.push(self.end(start, Token::BinOp(BinOp::Add))),
                     '*' => tokens.push(self.end(start, Token::BinOp(BinOp::Mul))),
                     '/' => tokens.push(self.end(start, Token::BinOp(BinOp::Div))),

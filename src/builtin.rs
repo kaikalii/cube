@@ -6,9 +6,9 @@ use std::{
 use once_cell::sync::Lazy;
 
 use crate::{
-    lex::Span,
+    lex::{Sp, Span},
     node::*,
-    parse::{ParseError, ParseResult},
+    parse::ParseResult,
     value::Value,
     vector::{modulus, Vector},
 };
@@ -47,7 +47,7 @@ impl ArgCount {
 }
 
 pub type BuiltinFn =
-    dyn Fn(Vec<Value>, Span, &mut Vec<Vec<Value>>) -> ParseResult<Value> + Send + Sync;
+    dyn Fn(Vec<Sp<Value>>, Span, &mut Vec<Vec<Sp<Value>>>) -> ParseResult<Value> + Send + Sync;
 
 type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 
@@ -76,8 +76,8 @@ macro_rules! make_builtin_fns {
                     max = None;
                 )*
                 let args = ArgCount { min, max };
-                map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Value>, _span: Span, _stack: &mut Vec<Vec<Value>>| {
-                    let mut args = args.into_iter();
+                map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span, _stack: &mut Vec<Vec<Sp<Value>>>| {
+                    let mut args = args.into_iter().map(|arg| arg.value);
                     $(let mut $arg = args.next().unwrap_or_else(|| {
                         $(return $default.into();)?
                         unreachable!()
@@ -311,24 +311,11 @@ make_builtin_fns!(
         let n = n.expect_number("n", span)?.abs() as usize;
         let mut frame = Vec::new();
         for _ in 0..n {
-            frame.push(value.clone());
+            frame.push(span.sp(value.clone()));
         }
         stack.push(frame);
         Value::Args
     }),
-    (set, span, [stack], |n, value, (args)| {
-        let n = n.expect_number("n", span)?.abs() as usize;
-        if let Some(spot) = args.get_mut(n) {
-            *spot = value;
-        } else {
-            return Err(span.sp(ParseError::IndexOutOfBounds {
-                index: n,
-                len: args.len(),
-            }));
-        }
-        stack.push(args);
-        Value::Args
-    })
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

@@ -45,6 +45,7 @@ pub enum ParseError {
         index: usize,
         len: usize,
     },
+    CannotSet(&'static str),
 }
 
 impl fmt::Display for ParseError {
@@ -69,6 +70,7 @@ impl fmt::Display for ParseError {
             ParseError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
+            ParseError::CannotSet(name) => write!(f, "Cannot set {name}"),
         }
     }
 }
@@ -85,15 +87,15 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         }],
         args_stack: Vec::new(),
     };
-    while parser.try_exact(Token::Newline) {}
+    while parser.try_exact(Token::Newline).is_some() {}
     while parser.item()? {
-        while parser.try_exact(Token::Newline) {}
+        while parser.try_exact(Token::Newline).is_some() {}
     }
     let root = parser
         .try_expr()?
-        .map(Value::into_node)
+        .map(|val| val.value.into_node())
         .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
-    while parser.try_exact(Token::Newline) {}
+    while parser.try_exact(Token::Newline).is_some() {}
     let initial_pos = parser
         .find_binding("initial_pos")
         .map(|val| val.value.expect_vector("initial_pos", val.span))
@@ -126,7 +128,7 @@ struct Parser {
     tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
-    args_stack: Vec<Vec<Value>>,
+    args_stack: Vec<Vec<Sp<Value>>>,
 }
 
 struct Scope {
@@ -143,9 +145,9 @@ impl Parser {
         self.curr += 1;
         Some(token)
     }
-    fn try_exact(&mut self, token: impl Into<Token>) -> bool {
+    fn try_exact(&mut self, token: impl Into<Token>) -> Option<Span> {
         self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
-            .is_some()
+            .map(|sp| sp.span)
     }
     fn last_span(&self) -> Span {
         if let Some(token) = self
@@ -159,7 +161,7 @@ impl Parser {
         }
     }
     fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
-        if self.try_exact(token.into()) {
+        if self.try_exact(token.into()).is_some() {
             Ok(())
         } else {
             Err(self.expected(expectation))
@@ -194,13 +196,13 @@ impl Parser {
             .last_mut()
             .unwrap()
             .bindings
-            .insert(name.value, name.span.sp(value));
+            .insert(name.value, value);
         Ok(true)
     }
-    fn try_expr(&mut self) -> ParseResult<Option<Value>> {
+    fn try_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
         self.try_as_expr()
     }
-    fn try_as_expr(&mut self) -> ParseResult<Option<Value>> {
+    fn try_as_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
         let Some(left) = self.try_md_expr()? else {
             return Ok(None);
         };
@@ -211,18 +213,23 @@ impl Parser {
                 _ => None,
             }) {
                 let right = self.try_as_expr()?.ok_or_else(|| self.expected("term"))?;
-                match op.value {
-                    BinOp::Add => left.bin_scalar_op(right, "+", op.span, Add::add)?,
-                    BinOp::Sub => left.bin_scalar_op(right, "-", op.span, Sub::sub)?,
+                let span = left.span.union(right.span);
+                span.sp(match op.value {
+                    BinOp::Add => left
+                        .value
+                        .bin_scalar_op(right.value, "+", op.span, Add::add)?,
+                    BinOp::Sub => left
+                        .value
+                        .bin_scalar_op(right.value, "-", op.span, Sub::sub)?,
                     _ => unreachable!(),
-                }
+                })
             } else {
                 left
             },
         ))
     }
-    fn try_md_expr(&mut self) -> ParseResult<Option<Value>> {
-        let Some(left) = self.try_call()? else {
+    fn try_md_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
+        let Some(left) = self.try_set()? else {
             return Ok(None);
         };
         Ok(Some(
@@ -232,33 +239,64 @@ impl Parser {
                 _ => None,
             }) {
                 let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
-                match op.value {
-                    BinOp::Mul => left.bin_scalar_op(right, "*", op.span, Mul::mul)?,
-                    BinOp::Div => left.bin_scalar_op(right, "/", op.span, Div::div)?,
+                let span = left.span.union(right.span);
+                span.sp(match op.value {
+                    BinOp::Mul => left
+                        .value
+                        .bin_scalar_op(right.value, "*", op.span, Mul::mul)?,
+                    BinOp::Div => left
+                        .value
+                        .bin_scalar_op(right.value, "/", op.span, Div::div)?,
                     _ => unreachable!(),
-                }
+                })
             } else {
                 left
             },
         ))
     }
-    fn try_call(&mut self) -> ParseResult<Option<Value>> {
+    fn try_set(&mut self) -> ParseResult<Option<Sp<Value>>> {
+        let Some(left) = self.try_call()? else {
+            return Ok(None);
+        };
+        let Some(set_span) = self.try_exact(Token::Colon) else {
+            return Ok(Some(left));
+        };
+        if !matches!(left.value, Value::Args) {
+            return Err(left
+                .span
+                .union(set_span)
+                .sp(ParseError::CannotSet(left.value.type_name())));
+        }
+        let mut indices = self.args()?;
+        let Some(last_arg) = indices.last() else {
+            return Err(self.expected("arguments"));
+        };
+        let full_span = left.span.union(last_arg.span);
+        let value = indices.remove(0);
+        let mut args = self.args_stack.pop().expect("stack empty when setting");
+        for nval in indices {
+            let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
+            if let Some(spot) = args.get_mut(n) {
+                *spot = value.clone();
+            } else {
+                return Err(nval.span.sp(ParseError::IndexOutOfBounds {
+                    index: n,
+                    len: args.len(),
+                }));
+            }
+        }
+        self.args_stack.push(args);
+        Ok(Some(full_span.sp(Value::Args)))
+    }
+    fn try_call(&mut self) -> ParseResult<Option<Sp<Value>>> {
         let Some(term) = self.try_term()? else {
             return Ok(None);
         };
         let f_span = self.last_span();
-        let mut args = Vec::new();
-        while let Some(arg) = self.try_term()? {
-            match arg {
-                Value::Args => {
-                    args.extend(self.args_stack.pop().unwrap());
-                }
-                arg => args.push(arg),
-            }
-        }
-        let f_name = match term {
+        let args = self.args()?;
+        let f_name = match term.value {
             Value::BuiltinFn(name) => name,
-            value if args.is_empty() => return Ok(Some(value)),
+            _ if args.is_empty() => return Ok(Some(term)),
             value => {
                 return Err(self
                     .last_span()
@@ -272,28 +310,40 @@ impl Parser {
                 found: args.len(),
             }));
         }
-        f(args, f_span, &mut self.args_stack).map(Some)
+        Ok(Some(f_span.sp(f(args, f_span, &mut self.args_stack)?)))
     }
-    fn try_term(&mut self) -> ParseResult<Option<Value>> {
+    fn args(&mut self) -> ParseResult<Vec<Sp<Value>>> {
+        let mut args = Vec::new();
+        while let Some(arg) = self.try_term()? {
+            match arg.value {
+                Value::Args => {
+                    args.extend(self.args_stack.pop().unwrap());
+                }
+                _ => args.push(arg),
+            }
+        }
+        Ok(args)
+    }
+    fn try_term(&mut self) -> ParseResult<Option<Sp<Value>>> {
         Ok(Some(if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident.value) {
-                value.value.clone()
+                value.map(Clone::clone)
             } else if BUILTINS.contains_key(&ident.value) {
-                Value::BuiltinFn(ident.value)
+                ident.map(Value::BuiltinFn)
             } else if let Some(val) = builtin_constant(&ident.value) {
-                val
+                ident.span.sp(val)
             } else {
                 return Err(ident.map(ParseError::UnknownIdent));
             }
         } else if let Some(num) = self.number()? {
-            Value::Number(num)
-        } else if self.try_exact(Token::OpenParen) {
+            num.map(Value::Number)
+        } else if self.try_exact(Token::OpenParen).is_some() {
             let res = self
                 .try_expr()?
                 .ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
             res
-        } else if self.try_exact(Token::Dollar) {
+        } else if self.try_exact(Token::Dollar).is_some() {
             self.try_expr()?
                 .ok_or_else(|| self.expected("expression"))?
         } else {
@@ -306,7 +356,7 @@ impl Parser {
             _ => None,
         })
     }
-    fn number(&mut self) -> ParseResult<Option<f64>> {
+    fn number(&mut self) -> ParseResult<Option<Sp<f64>>> {
         self.next_token_map(|token| match token {
             Token::Number(num) => Some(num),
             _ => None,
@@ -314,6 +364,7 @@ impl Parser {
         .map(|num| {
             num.value
                 .parse()
+                .map(|n| num.span.sp(n))
                 .map_err(|_| num.span.sp(ParseError::InvalidNumber(num.value)))
         })
         .transpose()
