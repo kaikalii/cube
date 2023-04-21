@@ -17,6 +17,7 @@ pub enum Value {
     Node(NodeBox),
     BuiltinFn(String),
     Args(Vec<Sp<Self>>),
+    Sep,
 }
 
 impl fmt::Debug for Value {
@@ -27,6 +28,7 @@ impl fmt::Debug for Value {
             Value::Node(node) => write!(f, "{node:?}"),
             Value::BuiltinFn(name) => write!(f, "{name}"),
             Value::Args(_) => write!(f, "args"),
+            Value::Sep => write!(f, "|"),
         }
     }
 }
@@ -37,7 +39,7 @@ impl Node for Value {
             Value::Number(n) => NodeBox::new(constant_scalar_node(*n)),
             Value::Vector(v) => NodeBox::new(constant_vector_node(*v)),
             Value::Node(node) => node.clone(),
-            Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
+            Value::BuiltinFn(_) | Value::Sep => NodeBox::new(constant_scalar_node(0.0)),
             Value::Args(_) => panic!("cannot box args"),
         }
     }
@@ -46,7 +48,7 @@ impl Node for Value {
             Value::Number(n) => Vector::splat(*n),
             Value::Vector(v) => *v,
             Value::Node(node) => node.sample(env),
-            Value::BuiltinFn(_) => Vector::ZERO,
+            Value::BuiltinFn(_) | Value::Sep => Vector::ZERO,
             Value::Args(_) => panic!("attempted to sample args"),
         }
     }
@@ -66,6 +68,7 @@ impl Value {
             Value::Node(_) => "node",
             Value::BuiltinFn(_) => "builtin function",
             Value::Args(_) => "args",
+            Value::Sep => "sep",
         }
     }
     pub fn expect_natural(&self, name: &'static str, span: Span) -> CompileResult<usize> {
@@ -87,12 +90,6 @@ impl Value {
             _ => Err(span.sp(CompileError::ExpectedVector(name))),
         }
     }
-    pub fn expect_args(self, name: &'static str, span: Span) -> CompileResult<Vec<Sp<Self>>> {
-        match self {
-            Value::Args(args) => Ok(args),
-            _ => Err(span.sp(CompileError::ExpectedArgs(name))),
-        }
-    }
     pub fn un_scalar_op(
         self,
         op_name: &'static str,
@@ -107,7 +104,7 @@ impl Value {
                 node,
                 move |node, env| node.sample(env).map(|v| f(v)),
             ))),
-            Value::BuiltinFn(_) => {
+            Value::BuiltinFn(_) | Value::Sep => {
                 return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
@@ -130,7 +127,7 @@ impl Value {
                 node,
                 move |node, env| f(node.sample(env)),
             ))),
-            Value::BuiltinFn(_) => {
+            Value::BuiltinFn(_) | Value::Sep => {
                 return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),

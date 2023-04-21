@@ -109,8 +109,8 @@ macro_rules! make_builtin_fns {
                 )*
                 let args = ArgCount { min, max };
                 map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span| {
-                    let mut args = args.into_iter().map(|arg| arg.value);
-                    $(let mut $arg = args.next().unwrap_or_else(|| {
+                    let mut args = args.into_iter();
+                    $(let mut $arg = args.next().map(|arg| arg.value).unwrap_or_else(|| {
                         $(return $default.into();)?
                         unreachable!()
                     });)*
@@ -219,7 +219,7 @@ make_builtin_fns!(
     (min, span, |a, (rest)| {
         let mut min = a;
         for b in rest {
-            min = min.bin_scalar_op(b, "min", span, f64::min)?;
+            min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
         }
         min
     }),
@@ -227,7 +227,7 @@ make_builtin_fns!(
     (max, span, |a, (rest)| {
         let mut max = a;
         for b in rest {
-            max = max.bin_scalar_op(b, "max", span, f64::max)?;
+            max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
         }
         max
     }),
@@ -313,7 +313,7 @@ make_builtin_fns!(
         let offset = offset.expect_vector("offset", span)?;
         let mut nodes: Vec<NodeBox> = vec![first.into_node()];
         for value in rest {
-            nodes.push(value.into_node());
+            nodes.push(value.value.into_node());
         }
         state_node("sections", (nodes, period), move |(nodes, period), env| {
             let period = period.sample(env);
@@ -339,12 +339,13 @@ make_builtin_fns!(
             Vector::new(x, y, z)
         })
     }),
-    (sel, span, |indices, values| {
-        let indices = indices.expect_args("indices", span)?;
-        let values = values.expect_args("values", span)?;
+    (sel, span, |,(args)| {
+        let mut args = args.into_iter();
+        let indices: Vec<Sp<Value>> = args.by_ref().take_while(|v| !matches!(v.value, Value::Sep)).collect();
+        let values: Vec<Sp<Value>> = args.collect();
         let mut selected = Vec::with_capacity(indices.len());
         for index in indices {
-            let index = index.value.expect_natural("index", span)?;
+            let index = index.value.expect_natural("index", index.span)?;
             let value = values.get(index).cloned().ok_or_else(|| {
                 span.sp(CompileError::IndexOutOfBounds {
                     index,
@@ -355,6 +356,7 @@ make_builtin_fns!(
         }
         Value::Args(selected)
     }),
+    (args, |,(args)| { Value::Args(args) })
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

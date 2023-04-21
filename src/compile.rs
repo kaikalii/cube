@@ -43,7 +43,6 @@ pub enum CompileError {
     ExpectedNatural(&'static str),
     ExpectedNumber(&'static str),
     ExpectedVector(&'static str),
-    ExpectedArgs(&'static str),
     IndexOutOfBounds {
         index: usize,
         len: usize,
@@ -73,7 +72,6 @@ impl fmt::Display for CompileError {
             }
             CompileError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
             CompileError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
-            CompileError::ExpectedArgs(name) => write!(f, "Expected {name} to be args"),
             CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
@@ -368,6 +366,8 @@ impl Compiler {
         } else if self.try_exact(Token::Dollar).is_some() {
             self.try_expr()?
                 .ok_or_else(|| self.expected("expression"))?
+        } else if let Some(span) = self.try_exact(Token::Bar) {
+            span.sp(Value::Sep)
         } else {
             return Ok(None);
         }))
