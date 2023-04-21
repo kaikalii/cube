@@ -46,15 +46,14 @@ impl ArgCount {
     }
 }
 
-pub type BuiltinFn =
-    dyn Fn(Vec<Sp<Value>>, Span, &mut Vec<Vec<Sp<Value>>>) -> ParseResult<Value> + Send + Sync;
+pub type BuiltinFn = dyn Fn(Vec<Sp<Value>>, Span) -> ParseResult<Value> + Send + Sync;
 
 type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 
 macro_rules! make_builtin_fns {
     ($(
         $(#[doc = $doc:literal])*
-        ($name:ident, $($span:ident,)? $([$stack:ident],)? |$($(#[default($default:expr)])? $arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),*
+        ($name:ident, $($span:ident,)? |$($(#[default($default:expr)])? $arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),*
     $(,)*) => {
         #[allow(unused_assignments, unreachable_code, unused_mut)]
         fn builtin_fns() -> BuiltinFnMap {
@@ -76,14 +75,13 @@ macro_rules! make_builtin_fns {
                     max = None;
                 )*
                 let args = ArgCount { min, max };
-                map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span, _stack: &mut Vec<Vec<Sp<Value>>>| {
+                map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span| {
                     let mut args = args.into_iter().map(|arg| arg.value);
                     $(let mut $arg = args.next().unwrap_or_else(|| {
                         $(return $default.into();)?
                         unreachable!()
                     });)*
                     $(let $span = _span;)?
-                    $(let $stack = _stack;)?
                     $(let mut $varargs: Vec<_> = args.collect();)?
                     Ok($body.into())
                 })));
@@ -307,15 +305,6 @@ make_builtin_fns!(
     (m7, sp, |x| x
         .un_scalar_op("m7", sp, |x| x * 2f64.powf(11.0 / 12.0))?),
     (p8, sp, |x| x.un_scalar_op("p8", sp, |x| x * 2.0)?),
-    (fill, span, [stack], |n, value| {
-        let n = n.expect_number("n", span)?.abs() as usize;
-        let mut frame = Vec::new();
-        for _ in 0..n {
-            frame.push(span.sp(value.clone()));
-        }
-        stack.push(frame);
-        Value::Args
-    }),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

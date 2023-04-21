@@ -254,7 +254,17 @@ impl Parser {
             return Ok(None);
         };
         loop {
-            if let Some(set_span) = self.try_exact(Token::Colon) {
+            if self.try_exact(Token::DoubleColon).is_some() {
+                // Fill
+                let value = self
+                    .try_call()?
+                    .ok_or_else(|| self.expected("expression"))?;
+                let full_span = left.span.union(value.span);
+                let n = left.value.expect_number("fill count", left.span)?.abs() as usize;
+                let frame = vec![value; n];
+                self.args_stack.push(frame);
+                left = full_span.sp(Value::Args);
+            } else if let Some(set_span) = self.try_exact(Token::Colon) {
                 // Set
                 if !matches!(left.value, Value::Args) {
                     return Err(left
@@ -282,7 +292,7 @@ impl Parser {
                 }
                 self.args_stack.push(args);
                 left = full_span.sp(Value::Args);
-            } else if let Some(mod_span) = self.try_exact(Token::DoubleColon) {
+            } else if let Some(mod_span) = self.try_exact(Token::SemiColon) {
                 // Modify
                 if !matches!(left.value, Value::Args) {
                     return Err(left
@@ -300,7 +310,7 @@ impl Parser {
                 for nval in indices {
                     let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
                     if let Some(value) = args.get_mut(n) {
-                        *value = call(f_val.clone(), vec![value.clone()], &mut self.args_stack)?;
+                        *value = call(f_val.clone(), vec![value.clone()])?;
                     } else {
                         return Err(nval.span.sp(ParseError::IndexOutOfBounds {
                             index: n,
@@ -321,7 +331,7 @@ impl Parser {
             return Ok(None);
         };
         let args = self.args()?;
-        call(term, args, &mut self.args_stack).map(Some)
+        call(term, args).map(Some)
     }
     fn args(&mut self) -> ParseResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
@@ -382,11 +392,7 @@ impl Parser {
     }
 }
 
-fn call(
-    f_val: Sp<Value>,
-    args: Vec<Sp<Value>>,
-    stack: &mut Vec<Vec<Sp<Value>>>,
-) -> ParseResult<Sp<Value>> {
+fn call(f_val: Sp<Value>, args: Vec<Sp<Value>>) -> ParseResult<Sp<Value>> {
     let f_name = match f_val.value {
         Value::BuiltinFn(name) => name,
         _ if args.is_empty() => return Ok(f_val),
@@ -399,5 +405,5 @@ fn call(
             found: args.len(),
         }));
     }
-    Ok(f_val.span.sp(f(args, f_val.span, stack)?))
+    Ok(f_val.span.sp(f(args, f_val.span)?))
 }
