@@ -34,6 +34,7 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "b7" => 2f64.powf(10.0 / 12.0).into(),
         "m7" => 2f64.powf(11.0 / 12.0).into(),
         "p8" => 2.0.into(),
+        "pos" => pure_node("pos", |env| env.pos).into(),
         name => {
             let (letter, octave) = parse_note(name)?;
             letter.frequency(octave).into()
@@ -376,7 +377,31 @@ make_builtin_fns!(
         }
         Value::Args(selected)
     }),
-    (args, |(args)| { Value::Args(args) })
+    (args, |(args)| { Value::Args(args) }),
+    (gx, |x| state_node("gx", x, move |x, env| {
+        let x = x.sample(env).x;
+        Vector::splat((x >= env.pos.x) as u8 as f64)
+    })),
+    (gy, |y| state_node("gy", y, move |y, env| {
+        let y = y.sample(env).y;
+        Vector::splat((y >= env.pos.y) as u8 as f64)
+    })),
+    (gz, |z| state_node("gz", z, move |z, env| {
+        let z = z.sample(env).z;
+        Vector::splat((z >= env.pos.z) as u8 as f64)
+    })),
+    (lx, |x| state_node("lx", x, move |x, env| {
+        let x = x.sample(env).x;
+        Vector::splat((x < env.pos.x) as u8 as f64)
+    })),
+    (ly, |y| state_node("ly", y, move |y, env| {
+        let y = y.sample(env).y;
+        Vector::splat((y < env.pos.y) as u8 as f64)
+    })),
+    (lz, |z| state_node("lz", z, move |z, env| {
+        let z = z.sample(env).z;
+        Vector::splat((z < env.pos.z) as u8 as f64)
+    })),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
