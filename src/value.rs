@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::{
     compile::{CompileError, CompileResult},
-    lex::Span,
+    lex::{Sp, Span},
     node::*,
     vector::Vector,
 };
@@ -16,7 +16,7 @@ pub enum Value {
     #[allow(dead_code)]
     Node(NodeBox),
     BuiltinFn(String),
-    Args,
+    Args(Vec<Sp<Self>>),
 }
 
 impl fmt::Debug for Value {
@@ -26,7 +26,7 @@ impl fmt::Debug for Value {
             Value::Vector(v) => write!(f, "{v}"),
             Value::Node(node) => write!(f, "{node:?}"),
             Value::BuiltinFn(name) => write!(f, "{name}"),
-            Value::Args => write!(f, "args"),
+            Value::Args(_) => write!(f, "args"),
         }
     }
 }
@@ -38,7 +38,7 @@ impl Node for Value {
             Value::Vector(v) => NodeBox::new(constant_vector_node(*v)),
             Value::Node(node) => node.clone(),
             Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
-            Value::Args => panic!("cannot box args"),
+            Value::Args(_) => panic!("cannot box args"),
         }
     }
     fn sample(&mut self, env: &Env) -> Vector {
@@ -47,7 +47,7 @@ impl Node for Value {
             Value::Vector(v) => *v,
             Value::Node(node) => node.sample(env),
             Value::BuiltinFn(_) => Vector::ZERO,
-            Value::Args => panic!("attempted to sample args"),
+            Value::Args(_) => panic!("attempted to sample args"),
         }
     }
 }
@@ -65,7 +65,7 @@ impl Value {
             Value::Vector(_) => "vector",
             Value::Node(_) => "node",
             Value::BuiltinFn(_) => "builtin function",
-            Value::Args => "args",
+            Value::Args(_) => "args",
         }
     }
     pub fn expect_number(&self, name: &'static str, span: Span) -> CompileResult<f64> {
@@ -101,7 +101,7 @@ impl Value {
                     operand: self.type_name(),
                 }))
             }
-            Value::Args => panic!("cannot apply unary operation to args"),
+            Value::Args(_) => panic!("cannot apply unary operation to args"),
         })
     }
     pub fn un_vector_op(
@@ -124,7 +124,7 @@ impl Value {
                     operand: self.type_name(),
                 }))
             }
-            Value::Args => panic!("cannot apply unary operation to args"),
+            Value::Args(_) => panic!("cannot apply unary operation to args"),
         })
     }
     pub fn bin_scalar_op(

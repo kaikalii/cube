@@ -86,7 +86,6 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         scopes: vec![Scope {
             bindings: HashMap::new(),
         }],
-        args_stack: Vec::new(),
     };
     while compiler.try_exact(Token::Newline).is_some() {}
     while compiler.item()? {
@@ -130,7 +129,6 @@ struct Compiler {
     tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
-    args_stack: Vec<Vec<Sp<Value>>>,
 }
 
 struct Scope {
@@ -263,24 +261,22 @@ impl Compiler {
                     .ok_or_else(|| self.expected("expression"))?;
                 let full_span = left.span.union(value.span);
                 let n = left.value.expect_number("fill count", left.span)?.abs() as usize;
-                let frame = vec![value; n];
-                self.args_stack.push(frame);
-                left = full_span.sp(Value::Args);
+                let args = vec![value; n];
+                left = full_span.sp(Value::Args(args));
             } else if let Some(set_span) = self.try_exact(Token::Colon) {
                 // Set
-                if !matches!(left.value, Value::Args) {
-                    return Err(left
+                let Value::Args(mut args) = left.value else {
+                     return Err(left
                         .span
                         .union(set_span)
                         .sp(CompileError::CannotSet(left.value.type_name())));
-                }
+                };
                 let mut indices = self.args()?;
                 let Some(last_arg) = indices.last() else {
                     return Err(self.expected("arguments"));
                 };
                 let full_span = left.span.union(last_arg.span);
                 let value = indices.remove(0);
-                let mut args = self.args_stack.pop().expect("stack empty when setting");
                 for nval in indices {
                     let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
                     if let Some(spot) = args.get_mut(n) {
@@ -292,23 +288,21 @@ impl Compiler {
                         }));
                     }
                 }
-                self.args_stack.push(args);
-                left = full_span.sp(Value::Args);
+                left = full_span.sp(Value::Args(args));
             } else if let Some(mod_span) = self.try_exact(Token::SemiColon) {
                 // Modify
-                if !matches!(left.value, Value::Args) {
-                    return Err(left
+                let Value::Args(mut args) = left.value else {
+                     return Err(left
                         .span
                         .union(mod_span)
                         .sp(CompileError::CannotSet(left.value.type_name())));
-                }
+                };
                 let mut indices = self.args()?;
                 let Some(last_arg) = indices.last() else {
                     return Err(self.expected("arguments"));
                 };
                 let full_span = left.span.union(last_arg.span);
                 let f_val = indices.remove(0);
-                let mut args = self.args_stack.pop().expect("stack empty when modifying");
                 for nval in indices {
                     let n = nval.value.expect_number("index", nval.span)?.abs() as usize;
                     if let Some(value) = args.get_mut(n) {
@@ -320,8 +314,7 @@ impl Compiler {
                         }));
                     }
                 }
-                self.args_stack.push(args);
-                left = full_span.sp(Value::Args);
+                left = full_span.sp(Value::Args(args));
             } else {
                 break;
             }
@@ -339,8 +332,8 @@ impl Compiler {
         let mut args = Vec::new();
         while let Some(arg) = self.try_term()? {
             match arg.value {
-                Value::Args => {
-                    args.extend(self.args_stack.pop().unwrap());
+                Value::Args(list) => {
+                    args.extend(list);
                 }
                 _ => args.push(arg),
             }
