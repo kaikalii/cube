@@ -168,14 +168,6 @@ macro_rules! make_builtin_fns {
 }
 
 make_builtin_fns!(
-    (add, sp, |a, b| a
-        .bin_scalar_op(b, "add", sp, |a, b| a + b)?),
-    (sub, sp, |a, b| a
-        .bin_scalar_op(b, "sub", sp, |a, b| a - b)?),
-    (mul, sp, |a, b| a
-        .bin_scalar_op(b, "mul", sp, |a, b| a * b)?),
-    (div, sp, |a, b| a
-        .bin_scalar_op(b, "div", sp, |a, b| a / b)?),
     /// Generate a sine wave from a frequency
     (sin, |(freqs)| Wave3::new(
         "sine",
@@ -377,6 +369,7 @@ make_builtin_fns!(
         }
         Value::Args(selected)
     }),
+    /// Collect args into an args list that can be bound to a name
     (args, |(args)| { Value::Args(args) }),
     /// Check if the current x position is greater than a value
     (gtx, |x| state_node("gtx", x, move |x, env| {
