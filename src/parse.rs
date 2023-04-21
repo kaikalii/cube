@@ -85,6 +85,7 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         .try_expr()?
         .map(Value::into_node)
         .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
+    while parser.try_exact(Token::Newline) {}
     let initial_pos = parser
         .find_binding("initial_pos")
         .map(|val| val.value.expect_vector("initial_pos", val.span))
@@ -100,6 +101,11 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         .map(|val| val.value.expect_number("tempo", val.span))
         .transpose()?
         .unwrap_or(120.0);
+    if parser.curr < parser.tokens.len() {
+        return Err(parser.tokens[parser.curr]
+            .span
+            .sp(ParseError::Expected("end of file")));
+    }
     Ok(Cube {
         root,
         initial_pos,
