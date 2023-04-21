@@ -106,30 +106,6 @@ impl Node for Wave3 {
 }
 
 #[derive(Clone)]
-pub struct Enveloped {
-    pub name: &'static str,
-    pub envelope: Arc<dyn Fn(Vector) -> f64 + Send + Sync>,
-    pub node: NodeBox,
-}
-
-impl fmt::Debug for Enveloped {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} envelope {:?}", self.name, self.node)
-    }
-}
-
-impl Node for Enveloped {
-    fn boxed(&self) -> NodeBox {
-        NodeBox::new(self.clone())
-    }
-    fn sample(&mut self, env: &Env) -> Vector {
-        let sample = self.node.sample(env);
-        let amp = (self.envelope)(env.pos);
-        sample * amp
-    }
-}
-
-#[derive(Clone)]
 pub struct GenericNode<F, S = ()> {
     pub name: String,
     pub state: S,
