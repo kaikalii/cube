@@ -86,7 +86,7 @@ type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 macro_rules! make_builtin_fns {
     ($(
         $(#[doc = $doc:literal])*
-        ($name:ident, $($span:ident,)? |$($(#[default($default:expr)])? $arg:ident),* $(,($varargs:ident))? $(,)?| $body:expr)),*
+        ($name:ident, $($span:ident,)? |$($(#[default($default:expr)])? $arg:ident),* $($(,)?($varargs:ident))? $(,)?| $body:expr)),*
     $(,)*) => {
         #[allow(unused_assignments, unreachable_code, unused_mut)]
         fn builtin_fns() -> BuiltinFnMap {
@@ -215,19 +215,27 @@ make_builtin_fns!(
             }
         )
     ),
-    /// Get the minimum of two or more values
+    /// Get the minimum of two or more values or a vector
     (min, span, |a, (rest)| {
         let mut min = a;
-        for b in rest {
-            min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
+        if rest.is_empty() {
+            min = min.un_vector_op("min", span, |v| Vector::splat(v.x.min(v.y).min(v.z)))?;
+        } else {
+            for b in rest {
+                min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
+            }
         }
         min
     }),
-    /// Get the maximum of two or more values
+    /// Get the maximum of two or more values or a vector
     (max, span, |a, (rest)| {
         let mut max = a;
-        for b in rest {
-            max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
+        if rest.is_empty() {
+            max = max.un_vector_op("max", span, |v| Vector::splat(v.x.max(v.y).max(v.z)))?;
+        } else {
+            for b in rest {
+                max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
+            }
         }
         max
     }),
@@ -339,9 +347,12 @@ make_builtin_fns!(
             Vector::new(x, y, z)
         })
     }),
-    (sel, span, |,(args)| {
+    (sel, span, |(args)| {
         let mut args = args.into_iter();
-        let indices: Vec<Sp<Value>> = args.by_ref().take_while(|v| !matches!(v.value, Value::Sep)).collect();
+        let indices: Vec<Sp<Value>> = args
+            .by_ref()
+            .take_while(|v| !matches!(v.value, Value::Sep))
+            .collect();
         let values: Vec<Sp<Value>> = args.collect();
         let mut selected = Vec::with_capacity(indices.len());
         for index in indices {
@@ -356,7 +367,7 @@ make_builtin_fns!(
         }
         Value::Args(selected)
     }),
-    (args, |,(args)| { Value::Args(args) })
+    (args, |(args)| { Value::Args(args) })
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
