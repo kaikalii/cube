@@ -1,19 +1,19 @@
 mod builtin;
+mod compile;
 mod lex;
 mod node;
-mod parse;
 mod value;
 mod vector;
 
 use std::fs;
 
+use compile::compile;
 use hodaun::{Mix, Mono, OutputDeviceMixer};
 use node::NodeSource;
-use parse::parse;
 
 fn main() {
     let input = fs::read_to_string("test.cube").unwrap();
-    match parse(&input) {
+    match compile(&input) {
         Ok(cube) => {
             println!("{:?}", cube.root);
 

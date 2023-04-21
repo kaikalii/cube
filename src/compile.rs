@@ -20,7 +20,7 @@ pub struct Cube {
 }
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum CompileError {
     InvalidCharacter(char),
     Expected(&'static str),
     InvalidNumber(String),
@@ -48,38 +48,38 @@ pub enum ParseError {
     CannotSet(&'static str),
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for CompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ParseError::InvalidCharacter(c) => write!(f, "Invalid character: {}", c),
-            ParseError::Expected(expectation) => write!(f, "Expected {}", expectation),
-            ParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
-            ParseError::UnknownIdent(s) => write!(f, "Unknown identifier: {}", s),
-            ParseError::InvalidUnaryOperation { op, operand } => {
+            CompileError::InvalidCharacter(c) => write!(f, "Invalid character: {}", c),
+            CompileError::Expected(expectation) => write!(f, "Expected {}", expectation),
+            CompileError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
+            CompileError::UnknownIdent(s) => write!(f, "Unknown identifier: {}", s),
+            CompileError::InvalidUnaryOperation { op, operand } => {
                 write!(f, "Invalid operation: {} {}", op, operand)
             }
-            ParseError::InvalidBinaryOperation { a, b, op } => {
+            CompileError::InvalidBinaryOperation { a, b, op } => {
                 write!(f, "Invalid operation: {} {} {}", a, op, b)
             }
-            ParseError::CannotCall(name) => write!(f, "Cannot call {name}"),
-            ParseError::WrongNumberOfArguments { name, found } => {
+            CompileError::CannotCall(name) => write!(f, "Cannot call {name}"),
+            CompileError::WrongNumberOfArguments { name, found } => {
                 write!(f, "No variant of {name} takes {found} arguments")
             }
-            ParseError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
-            ParseError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
-            ParseError::IndexOutOfBounds { index, len } => {
+            CompileError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
+            CompileError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
+            CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
-            ParseError::CannotSet(name) => write!(f, "Cannot set {name}"),
+            CompileError::CannotSet(name) => write!(f, "Cannot set {name}"),
         }
     }
 }
 
-pub type ParseResult<T = ()> = Result<T, Sp<ParseError>>;
+pub type CompileResult<T = ()> = Result<T, Sp<CompileError>>;
 
-pub fn parse(input: &str) -> ParseResult<Cube> {
-    let tokens = lex(input).map_err(|e| e.map(ParseError::InvalidCharacter))?;
-    let mut parser = Parser {
+pub fn compile(input: &str) -> CompileResult<Cube> {
+    let tokens = lex(input).map_err(|e| e.map(CompileError::InvalidCharacter))?;
+    let mut compiler = Compiler {
         tokens,
         curr: 0,
         scopes: vec![Scope {
@@ -87,34 +87,34 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
         }],
         args_stack: Vec::new(),
     };
-    while parser.try_exact(Token::Newline).is_some() {}
-    while parser.item()? {
-        while parser.try_exact(Token::Newline).is_some() {}
+    while compiler.try_exact(Token::Newline).is_some() {}
+    while compiler.item()? {
+        while compiler.try_exact(Token::Newline).is_some() {}
     }
-    let root = parser
+    let root = compiler
         .try_expr()?
         .map(|val| val.value.into_node())
         .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
-    while parser.try_exact(Token::Newline).is_some() {}
-    let initial_pos = parser
+    while compiler.try_exact(Token::Newline).is_some() {}
+    let initial_pos = compiler
         .find_binding("initial_pos")
         .map(|val| val.value.expect_vector("initial_pos", val.span))
         .transpose()?
         .unwrap_or(Vector::ZERO);
-    let initial_dir = parser
+    let initial_dir = compiler
         .find_binding("initial_dir")
         .map(|val| val.value.expect_vector("initial_dir", val.span))
         .transpose()?
         .unwrap_or(Vector::X);
-    let tempo = parser
+    let tempo = compiler
         .find_binding("tempo")
         .map(|val| val.value.expect_number("tempo", val.span))
         .transpose()?
         .unwrap_or(120.0);
-    if parser.curr < parser.tokens.len() {
-        return Err(parser.tokens[parser.curr]
+    if compiler.curr < compiler.tokens.len() {
+        return Err(compiler.tokens[compiler.curr]
             .span
-            .sp(ParseError::Expected("end of file")));
+            .sp(CompileError::Expected("end of file")));
     }
     Ok(Cube {
         root,
@@ -124,7 +124,7 @@ pub fn parse(input: &str) -> ParseResult<Cube> {
     })
 }
 
-struct Parser {
+struct Compiler {
     tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
@@ -135,7 +135,7 @@ struct Scope {
     bindings: HashMap<String, Sp<Value>>,
 }
 
-impl Parser {
+impl Compiler {
     fn next_token_map<T>(&mut self, f: impl FnOnce(Token) -> Option<T>) -> Option<Sp<T>> {
         let token = self
             .tokens
@@ -160,15 +160,15 @@ impl Parser {
             Span::default()
         }
     }
-    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
+    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> CompileResult {
         if self.try_exact(token.into()).is_some() {
             Ok(())
         } else {
             Err(self.expected(expectation))
         }
     }
-    fn expected(&self, expectation: &'static str) -> Sp<ParseError> {
-        self.last_span().sp(ParseError::Expected(expectation))
+    fn expected(&self, expectation: &'static str) -> Sp<CompileError> {
+        self.last_span().sp(CompileError::Expected(expectation))
     }
     fn find_binding(&self, name: &str) -> Option<Sp<&Value>> {
         self.scopes
@@ -177,10 +177,10 @@ impl Parser {
             .find_map(|scope| scope.bindings.get(name))
             .map(|val| val.span.sp(&val.value))
     }
-    fn item(&mut self) -> ParseResult<bool> {
+    fn item(&mut self) -> CompileResult<bool> {
         self.binding()
     }
-    fn binding(&mut self) -> ParseResult<bool> {
+    fn binding(&mut self) -> CompileResult<bool> {
         let start = self.curr;
         let Some(name) = self.ident() else {
             return Ok(false);
@@ -199,10 +199,10 @@ impl Parser {
             .insert(name.value, value);
         Ok(true)
     }
-    fn try_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
         self.try_as_expr()
     }
-    fn try_as_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_as_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let Some(mut left) = self.try_md_expr()? else {
             return Ok(None);
         };
@@ -225,7 +225,7 @@ impl Parser {
         }
         Ok(Some(left))
     }
-    fn try_md_expr(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_md_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let Some(mut left) = self.try_set()? else {
             return Ok(None);
         };
@@ -249,7 +249,7 @@ impl Parser {
         }
         Ok(Some(left))
     }
-    fn try_set(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_set(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let Some(mut left) = self.try_call()? else {
             return Ok(None);
         };
@@ -270,7 +270,7 @@ impl Parser {
                     return Err(left
                         .span
                         .union(set_span)
-                        .sp(ParseError::CannotSet(left.value.type_name())));
+                        .sp(CompileError::CannotSet(left.value.type_name())));
                 }
                 let mut indices = self.args()?;
                 let Some(last_arg) = indices.last() else {
@@ -284,7 +284,7 @@ impl Parser {
                     if let Some(spot) = args.get_mut(n) {
                         *spot = value.clone();
                     } else {
-                        return Err(nval.span.sp(ParseError::IndexOutOfBounds {
+                        return Err(nval.span.sp(CompileError::IndexOutOfBounds {
                             index: n,
                             len: args.len(),
                         }));
@@ -298,7 +298,7 @@ impl Parser {
                     return Err(left
                         .span
                         .union(mod_span)
-                        .sp(ParseError::CannotSet(left.value.type_name())));
+                        .sp(CompileError::CannotSet(left.value.type_name())));
                 }
                 let mut indices = self.args()?;
                 let Some(last_arg) = indices.last() else {
@@ -312,7 +312,7 @@ impl Parser {
                     if let Some(value) = args.get_mut(n) {
                         *value = call(f_val.clone(), vec![value.clone()])?;
                     } else {
-                        return Err(nval.span.sp(ParseError::IndexOutOfBounds {
+                        return Err(nval.span.sp(CompileError::IndexOutOfBounds {
                             index: n,
                             len: args.len(),
                         }));
@@ -326,14 +326,14 @@ impl Parser {
         }
         Ok(Some(left))
     }
-    fn try_call(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let Some(term) = self.try_term()? else {
             return Ok(None);
         };
         let args = self.args()?;
         call(term, args).map(Some)
     }
-    fn args(&mut self) -> ParseResult<Vec<Sp<Value>>> {
+    fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
         while let Some(arg) = self.try_term()? {
             match arg.value {
@@ -345,7 +345,7 @@ impl Parser {
         }
         Ok(args)
     }
-    fn try_term(&mut self) -> ParseResult<Option<Sp<Value>>> {
+    fn try_term(&mut self) -> CompileResult<Option<Sp<Value>>> {
         Ok(Some(if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident.value) {
                 value.map(Clone::clone)
@@ -354,7 +354,7 @@ impl Parser {
             } else if let Some(val) = builtin_constant(&ident.value) {
                 ident.span.sp(val)
             } else {
-                return Err(ident.map(ParseError::UnknownIdent));
+                return Err(ident.map(CompileError::UnknownIdent));
             }
         } else if let Some(num) = self.number()? {
             num.map(Value::Number)
@@ -377,7 +377,7 @@ impl Parser {
             _ => None,
         })
     }
-    fn number(&mut self) -> ParseResult<Option<Sp<f64>>> {
+    fn number(&mut self) -> CompileResult<Option<Sp<f64>>> {
         self.next_token_map(|token| match token {
             Token::Number(num) => Some(num),
             _ => None,
@@ -386,21 +386,21 @@ impl Parser {
             num.value
                 .parse()
                 .map(|n| num.span.sp(n))
-                .map_err(|_| num.span.sp(ParseError::InvalidNumber(num.value)))
+                .map_err(|_| num.span.sp(CompileError::InvalidNumber(num.value)))
         })
         .transpose()
     }
 }
 
-fn call(f_val: Sp<Value>, args: Vec<Sp<Value>>) -> ParseResult<Sp<Value>> {
+fn call(f_val: Sp<Value>, args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
     let f_name = match f_val.value {
         Value::BuiltinFn(name) => name,
         _ if args.is_empty() => return Ok(f_val),
-        value => return Err(f_val.span.sp(ParseError::CannotCall(value.type_name()))),
+        value => return Err(f_val.span.sp(CompileError::CannotCall(value.type_name()))),
     };
     let (arg_count, f) = &BUILTINS[&f_name];
     if !arg_count.matches(args.len()) {
-        return Err(f_val.span.sp(ParseError::WrongNumberOfArguments {
+        return Err(f_val.span.sp(CompileError::WrongNumberOfArguments {
             name: f_name,
             found: args.len(),
         }));

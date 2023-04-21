@@ -3,9 +3,9 @@
 use std::fmt;
 
 use crate::{
+    compile::{CompileError, CompileResult},
     lex::Span,
     node::*,
-    parse::{ParseError, ParseResult},
     vector::Vector,
 };
 
@@ -68,17 +68,17 @@ impl Value {
             Value::Args => "args",
         }
     }
-    pub fn expect_number(&self, name: &'static str, span: Span) -> ParseResult<f64> {
+    pub fn expect_number(&self, name: &'static str, span: Span) -> CompileResult<f64> {
         match self {
             Value::Number(n) => Ok(*n),
-            _ => Err(span.sp(ParseError::ExpectedNumber(name))),
+            _ => Err(span.sp(CompileError::ExpectedNumber(name))),
         }
     }
-    pub fn expect_vector(&self, name: &'static str, span: Span) -> ParseResult<Vector> {
+    pub fn expect_vector(&self, name: &'static str, span: Span) -> CompileResult<Vector> {
         match self {
             Value::Number(n) => Ok(Vector::splat(*n)),
             Value::Vector(v) => Ok(*v),
-            _ => Err(span.sp(ParseError::ExpectedVector(name))),
+            _ => Err(span.sp(CompileError::ExpectedVector(name))),
         }
     }
     pub fn un_scalar_op(
@@ -86,7 +86,7 @@ impl Value {
         op_name: &'static str,
         span: Span,
         f: impl Fn(f64) -> f64 + Clone + Send + Sync + 'static,
-    ) -> ParseResult<Self> {
+    ) -> CompileResult<Self> {
         Ok(match self {
             Value::Number(n) => Value::Number(f(n)),
             Value::Vector(v) => Value::Vector(v.map(f)),
@@ -96,7 +96,7 @@ impl Value {
                 move |node, env| node.sample(env).map(|v| f(v)),
             ))),
             Value::BuiltinFn(_) => {
-                return Err(span.sp(ParseError::InvalidUnaryOperation {
+                return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
                 }))
@@ -109,7 +109,7 @@ impl Value {
         op_name: &'static str,
         span: Span,
         f: impl Fn(Vector) -> Vector + Clone + Send + Sync + 'static,
-    ) -> ParseResult<Self> {
+    ) -> CompileResult<Self> {
         Ok(match self {
             Value::Number(n) => Value::Vector(f(Vector::splat(n))),
             Value::Vector(v) => Value::Vector(f(v)),
@@ -119,7 +119,7 @@ impl Value {
                 move |node, env| f(node.sample(env)),
             ))),
             Value::BuiltinFn(_) => {
-                return Err(span.sp(ParseError::InvalidUnaryOperation {
+                return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
                 }))
@@ -133,7 +133,7 @@ impl Value {
         op_name: &'static str,
         span: Span,
         f: impl Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
-    ) -> ParseResult<Self> {
+    ) -> CompileResult<Self> {
         Ok(match (self, other) {
             (Value::Number(a), Value::Number(b)) => Value::Number(f(a, b)),
             (Value::Vector(a), Value::Vector(b)) => Value::Vector(a.with(b, f)),
@@ -165,7 +165,7 @@ impl Value {
                 move |(a, b), env| a.sample(env).with(b.sample(env), |a, b| f(a, b)),
             ))),
             (a, b) => {
-                return Err(span.sp(ParseError::InvalidBinaryOperation {
+                return Err(span.sp(CompileError::InvalidBinaryOperation {
                     a: a.type_name(),
                     b: b.type_name(),
                     op: op_name,
@@ -179,7 +179,7 @@ impl Value {
         op_name: &'static str,
         span: Span,
         f: impl Fn(Vector, Vector) -> Vector + Clone + Send + Sync + 'static,
-    ) -> ParseResult<Self> {
+    ) -> CompileResult<Self> {
         Ok(match (self, other) {
             (Value::Number(a), Value::Number(b)) => {
                 Value::Vector(f(Vector::splat(a), Vector::splat(b)))
@@ -213,7 +213,7 @@ impl Value {
                 move |(a, b), env| f(a.sample(env), b.sample(env)),
             ))),
             (a, b) => {
-                return Err(span.sp(ParseError::InvalidBinaryOperation {
+                return Err(span.sp(CompileError::InvalidBinaryOperation {
                     a: a.type_name(),
                     b: b.type_name(),
                     op: op_name,

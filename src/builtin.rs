@@ -6,9 +6,9 @@ use std::{
 use once_cell::sync::Lazy;
 
 use crate::{
+    compile::CompileResult,
     lex::{Sp, Span},
     node::*,
-    parse::ParseResult,
     value::Value,
     vector::{modulus, Vector},
 };
@@ -46,7 +46,7 @@ impl ArgCount {
     }
 }
 
-pub type BuiltinFn = dyn Fn(Vec<Sp<Value>>, Span) -> ParseResult<Value> + Send + Sync;
+pub type BuiltinFn = dyn Fn(Vec<Sp<Value>>, Span) -> CompileResult<Value> + Send + Sync;
 
 type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 
