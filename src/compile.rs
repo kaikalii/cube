@@ -46,6 +46,10 @@ pub enum CompileError {
         len: usize,
     },
     CannotSet(&'static str),
+    MistmatchedLengths {
+        a: usize,
+        b: usize,
+    },
 }
 
 impl fmt::Display for CompileError {
@@ -73,6 +77,9 @@ impl fmt::Display for CompileError {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
             CompileError::CannotSet(name) => write!(f, "Cannot set {name}"),
+            CompileError::MistmatchedLengths { a, b } => {
+                write!(f, "Mismatched lengths: {a} and {b}")
+            }
         }
     }
 }
@@ -300,7 +307,7 @@ impl Compiler {
                     .ok_or_else(|| self.expected("expression"))?;
                 let full_span = left.span.union(value.span);
                 let n = left.value.expect_natural("fill count", left.span)?;
-                let args = vec![value; n];
+                let args = vec![value.value; n];
                 left = full_span.sp(Value::List(args));
             } else if let Some(set_span) = self.try_exact(Token::Colon) {
                 // Set
@@ -315,7 +322,7 @@ impl Compiler {
                     return Err(self.expected("arguments"));
                 };
                 let full_span = left.span.union(last_arg.span);
-                let value = indices.remove(0);
+                let value = indices.remove(0).value;
                 for nval in indices {
                     let n = nval.value.expect_natural("index", nval.span)?;
                     if let Some(spot) = args.get_mut(n) {
@@ -345,7 +352,7 @@ impl Compiler {
                 for nval in indices {
                     let n = nval.value.expect_natural("index", nval.span)?;
                     if let Some(value) = args.get_mut(n) {
-                        *value = call(f_val.clone(), vec![value.clone()])?;
+                        *value = call(f_val.clone(), vec![left.span.sp(value.clone())])?.value;
                     } else {
                         return Err(nval.span.sp(CompileError::IndexOutOfBounds {
                             index: n,
@@ -380,10 +387,8 @@ impl Compiler {
             let mut end = span;
             let mut items = Vec::new();
             while let Some(item) = self.try_term()? {
-                items.push(item);
-            }
-            if let Some(last) = items.last() {
-                end = last.span;
+                items.push(item.value);
+                end = item.span;
             }
             Ok(Some(start.union(end).sp(Value::List(items))))
         } else {

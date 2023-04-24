@@ -68,36 +68,28 @@ impl Node for NodeBox {
 #[derive(Clone)]
 pub struct Wave3 {
     pub name: &'static str,
-    pub one_hz: Arc<dyn Fn(Stereo) -> Stereo + Send + Sync>,
-    pub freqs: Vec<(NodeBox, Stereo)>,
+    pub one_hz: Arc<dyn Fn(f64) -> f64 + Send + Sync>,
+    pub freq: NodeBox,
+    pub time: f64,
 }
 
 impl fmt::Debug for Wave3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for freq in &self.freqs {
-            write!(f, "{freq:?} ")?;
-        }
-        write!(f, "hz {} wave", self.name)
+        write!(f, "{:?} hz {} wave", self.freq, self.name)
     }
 }
 
 impl Wave3 {
-    pub fn new<I>(
+    pub fn new(
         name: &'static str,
-        freq: I,
-        one_hz: impl Fn(Stereo) -> Stereo + Send + Sync + 'static,
-    ) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Node,
-    {
+        freq: impl Node,
+        one_hz: impl Fn(f64) -> f64 + Send + Sync + 'static,
+    ) -> Self {
         Self {
             name,
             one_hz: Arc::new(one_hz),
-            freqs: freq
-                .into_iter()
-                .map(|n| (n.boxed(), Stereo::ZERO))
-                .collect(),
+            freq: freq.boxed(),
+            time: 0.0,
         }
     }
 }
@@ -108,12 +100,10 @@ impl Node for Wave3 {
     }
     fn sample(&mut self, env: &Env) -> Stereo {
         let mut sample = Stereo::ZERO;
-        for (freq, pos) in &mut self.freqs {
-            let freq = freq.sample(env);
-            sample += (self.one_hz)(*pos);
-            *pos += env.dir * (freq / env.sample_rate);
-        }
-        sample / self.freqs.len() as f64
+        let freq = self.freq.sample(env).average();
+        sample += (self.one_hz)(self.time);
+        self.time += env.dir * (freq / env.sample_rate);
+        sample
     }
 }
 
@@ -133,14 +123,6 @@ pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn> {
         name: n.to_string(),
         state: (),
         f: move |_: &mut (), _: &Env| Stereo::both(n),
-    }
-}
-
-pub fn constant_vector_node(v: Stereo) -> GenericNode<impl NodeFn> {
-    GenericNode {
-        name: v.to_string(),
-        state: (),
-        f: move |_: &mut (), _: &Env| v,
     }
 }
 
