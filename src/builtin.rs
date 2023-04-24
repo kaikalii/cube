@@ -256,6 +256,14 @@ make_builtin_fns!(
     (sqrt, span, |x| x.un_scalar_op("sqrt", span, f64::sqrt)?),
     /// Get e raised to a value
     (exp, span, |x| x.un_scalar_op("exp", span, f64::exp)?),
+    /// Pan
+    (pan, |pan, value| {
+        state_node("pan", (pan, value), |(pan, value), env| {
+            let pan = pan.sample(env).average();
+            let value = value.sample(env).average();
+            Stereo::pan(value, pan)
+        })
+    }),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
     (perbeat, |n| {
         state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq())
