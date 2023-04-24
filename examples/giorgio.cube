@@ -5,5 +5,5 @@ As = sel riff #A2 A3 B3 C4 E4
 Es = sel riff #E2 E3 F#3 G3 B3
 Fs = sel riff #F2 F3 G3 A3 C4
 Gs = sel riff #G2 G3 A3 B3 D4
-melody = 0.3 hsquare 5 $ sec 0 (beat 4) #As As Es Es As As Es Es Fs Gs Es Es Fs Gs Es Es
+melody = 0.3 hsquare 5 $ sec 0 (beat 4) $ join As As Es Es As As Es Es Fs Gs Es Es Fs Gs Es Es
 kick (perbeat 1) + snare + hh + melody

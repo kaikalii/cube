@@ -313,6 +313,13 @@ make_builtin_fns!(
         }
         Value::List(selected)
     }),
+    (join, |(values)| {
+        let mut joined = Vec::new();
+        for value in values {
+            joined.extend(value.value.into_list());
+        }
+        Value::List(joined)
+    })
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
