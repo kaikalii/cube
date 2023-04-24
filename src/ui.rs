@@ -3,7 +3,7 @@ use std::fs;
 use eframe::egui::*;
 use hodaun::*;
 
-use crate::{compile::compile, node::NodeSource};
+use crate::compile::compile;
 
 pub struct App {
     output: OutputDeviceMixer<Stereo>,
@@ -33,8 +33,8 @@ impl App {
                 return;
             }
         };
-        let cube = match compile(&input) {
-            Ok(cube) => cube,
+        let source = match compile(&input) {
+            Ok(source) => source,
             Err(e) => {
                 self.error = Some(e.to_string());
                 return;
@@ -42,14 +42,10 @@ impl App {
         };
         self.error = None;
         self.maintainer = Maintainer::new();
-        let source = NodeSource {
-            root: cube.root,
-            time: cube.initial_pos,
-            dir: 1.0.into(),
-            tempo: cube.tempo,
+        if let Some(source) = source {
+            let source = source.maintained(&self.maintainer);
+            self.output.add(source);
         }
-        .maintained(&self.maintainer);
-        self.output.add(source);
     }
 }
 

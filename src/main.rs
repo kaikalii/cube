@@ -1,9 +1,9 @@
-mod builtin;
+mod ast;
 mod compile;
 mod lex;
 mod node;
+mod parse;
 mod ui;
-mod value;
 
 use std::ops::{Add, Rem};
 

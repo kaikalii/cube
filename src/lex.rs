@@ -60,11 +60,18 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Sp<T> {
     pub value: T,
     pub span: Span,
 }
+
+impl<T: fmt::Debug> fmt::Debug for Sp<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {:?}", self.span.start, self.value)
+    }
+}
+
 impl<T: fmt::Display> fmt::Display for Sp<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.span.start, self.value)
@@ -93,8 +100,17 @@ pub enum Token {
     Equals,
     OpenParen,
     CloseParen,
+    OpenCurly,
+    CloseCurly,
+    OpenBracket,
+    CloseBracket,
     Comma,
-    Newline,
+}
+
+impl<'a> From<&'a str> for Token {
+    fn from(value: &'a str) -> Self {
+        Token::Ident(value.into())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,7 +167,10 @@ impl Lexer {
                     ',' => self.end(start, Token::Comma),
                     '(' => self.end(start, Token::OpenParen),
                     ')' => self.end(start, Token::CloseParen),
-                    '\n' => self.end(start, Token::Newline),
+                    '{' => self.end(start, Token::OpenCurly),
+                    '}' => self.end(start, Token::CloseCurly),
+                    '[' => self.end(start, Token::OpenBracket),
+                    ']' => self.end(start, Token::CloseBracket),
                     '$' => self.end(start, Token::Dollar),
                     ':' if self.next_char_exact(':') => self.end(start, Token::DoubleColon),
                     ':' => self.end(start, Token::Colon),
