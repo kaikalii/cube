@@ -166,51 +166,49 @@ macro_rules! make_builtin_fns {
 
 make_builtin_fns!(
     /// Generate a sine wave from a frequency
-    (sin, |(freqs)| Wave3::new(
+    (sin, |freqs| Wave3::new(
         "sine",
-        freqs.into_iter().map(|v| v.value),
+        freqs.into_list().into_iter(),
         |pos| { pos.map(|x| (x * TAU).sin()) }
     )),
     /// Generate a square wave from a frequency
-    (square, |(freqs)| Wave3::new(
+    (square, |freqs| Wave3::new(
         "square",
-        freqs.into_iter().map(|v| v.value),
+        freqs.into_list().into_iter(),
         |pos| pos.map(square_wave)
     )),
     /// Generate a saw wave from a frequency
-    (saw, |(freqs)| Wave3::new(
+    (saw, |freqs| Wave3::new(
         "saw",
-        freqs.into_iter().map(|v| v.value),
+        freqs.into_list().into_iter(),
         |pos| pos.map(saw_wave)
     )),
     /// Generate a triangle wave from a frequency
-    (tri, |(freqs)| Wave3::new(
+    (tri, |freqs| Wave3::new(
         "triangle",
-        freqs.into_iter().map(|v| v.value),
+        freqs.into_list().into_iter(),
         |pos| pos.map(triangle_wave)
     )),
     /// Generate an additive square wave from a frequency and number of harmonics
-    (hsquare, span, |n, (freqs)| {
+    (hsquare, span, |n, freqs| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new("hsquare", freqs.into_iter().map(|v| v.value), move |pos| {
+        Wave3::new("hsquare", freqs.into_list().into_iter(), move |pos| {
             pos.map(|x| true_square_wave(x, n))
         })
     }),
     /// Generate an additive saw wave from a frequency and number of harmonics
-    (hsaw, span, |n, (freqs)| {
+    (hsaw, span, |n, freqs| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new("hsaw", freqs.into_iter().map(|v| v.value), move |pos| {
+        Wave3::new("hsaw", freqs.into_list().into_iter(), move |pos| {
             pos.map(|x| true_saw_wave(x, n))
         })
     }),
     /// Generate an additive triangle wave from a frequency and number of harmonics
-    (htri, span, |n, (freqs)| {
+    (htri, span, |n, freqs| {
         let n = n.expect_number("n", span)? as usize;
-        Wave3::new(
-            "htriangle",
-            freqs.into_iter().map(|v| v.value),
-            move |pos| pos.map(|x| true_triangle_wave(x, n)),
-        )
+        Wave3::new("htriangle", freqs.into_list().into_iter(), move |pos| {
+            pos.map(|x| true_triangle_wave(x, n))
+        })
     }),
     /// Generate kick drum sound
     (
@@ -286,12 +284,13 @@ make_builtin_fns!(
     /// ```
     /// square 110 * max 0 (saw (sec 0 1 2 8))
     /// ```
-    (sec, span, |offset, period, first, (rest)| {
+    (sec, span, |offset, period, values| {
         let offset = offset.expect_vector("offset", span)?;
-        let mut nodes: Vec<NodeBox> = vec![first.into_node()];
-        for value in rest {
-            nodes.push(value.value.into_node());
-        }
+        let nodes: Vec<NodeBox> = values
+            .into_flat_list()
+            .into_iter()
+            .map(|v| v.into_node())
+            .collect();
         state_node("sections", (nodes, period), move |(nodes, period), env| {
             let period = period.sample(env);
             let i = offset.with(period, |offset, period| {
@@ -306,28 +305,22 @@ make_builtin_fns!(
             Stereo::new(left, right)
         })
     }),
-    (sel, span, |(args)| {
-        let mut args = args.into_iter();
-        let indices: Vec<Sp<Value>> = args
-            .by_ref()
-            .take_while(|v| !matches!(v.value, Value::Sep))
-            .collect();
-        let values: Vec<Sp<Value>> = args.collect();
+    (sel, span, |indices, values| {
+        let indices = indices.into_list();
+        let values = values.into_list();
         let mut selected = Vec::with_capacity(indices.len());
         for index in indices {
-            let index = index.value.expect_natural("index", index.span)?;
+            let index = index.expect_natural("index", span)?;
             let value = values.get(index).cloned().ok_or_else(|| {
                 span.sp(CompileError::IndexOutOfBounds {
                     index,
                     len: values.len(),
                 })
             })?;
-            selected.push(value);
+            selected.push(span.sp(value));
         }
-        Value::Args(selected)
+        Value::List(selected)
     }),
-    /// Collect args into an args list that can be bound to a name
-    (args, |(args)| { Value::Args(args) }),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

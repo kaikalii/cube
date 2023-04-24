@@ -17,8 +17,7 @@ pub enum Value {
     #[allow(dead_code)]
     Node(NodeBox),
     BuiltinFn(String),
-    Args(Vec<Sp<Self>>),
-    Sep,
+    List(Vec<Sp<Self>>),
 }
 
 impl fmt::Debug for Value {
@@ -28,8 +27,7 @@ impl fmt::Debug for Value {
             Value::Stereo(v) => write!(f, "{v}"),
             Value::Node(node) => write!(f, "{node:?}"),
             Value::BuiltinFn(name) => write!(f, "{name}"),
-            Value::Args(_) => write!(f, "args"),
-            Value::Sep => write!(f, "|"),
+            Value::List(_) => write!(f, "args"),
         }
     }
 }
@@ -40,8 +38,8 @@ impl Node for Value {
             Value::Number(n) => NodeBox::new(constant_scalar_node(*n)),
             Value::Stereo(v) => NodeBox::new(constant_vector_node(*v)),
             Value::Node(node) => node.clone(),
-            Value::BuiltinFn(_) | Value::Sep => NodeBox::new(constant_scalar_node(0.0)),
-            Value::Args(_) => panic!("cannot box args"),
+            Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
+            Value::List(_) => panic!("cannot box args"),
         }
     }
     fn sample(&mut self, env: &Env) -> Stereo {
@@ -49,8 +47,8 @@ impl Node for Value {
             Value::Number(n) => Stereo::both(*n),
             Value::Stereo(v) => *v,
             Value::Node(node) => node.sample(env),
-            Value::BuiltinFn(_) | Value::Sep => Stereo::ZERO,
-            Value::Args(_) => panic!("attempted to sample args"),
+            Value::BuiltinFn(_) => Stereo::ZERO,
+            Value::List(_) => panic!("attempted to sample args"),
         }
     }
 }
@@ -68,8 +66,23 @@ impl Value {
             Value::Stereo(_) => "vector",
             Value::Node(_) => "node",
             Value::BuiltinFn(_) => "builtin function",
-            Value::Args(_) => "args",
-            Value::Sep => "sep",
+            Value::List(_) => "args",
+        }
+    }
+    pub fn into_list(self) -> Vec<Self> {
+        match self {
+            Value::List(list) => list.into_iter().map(|sp| sp.value).collect(),
+            value => vec![value],
+        }
+    }
+    pub fn into_flat_list(self) -> Vec<Self> {
+        match self {
+            Value::List(list) => list
+                .into_iter()
+                .map(|sp| sp.value)
+                .flat_map(|value| value.into_flat_list())
+                .collect(),
+            value => vec![value],
         }
     }
     pub fn expect_natural(&self, name: &'static str, span: Span) -> CompileResult<usize> {
@@ -106,13 +119,13 @@ impl Value {
                 node,
                 move |node, env| node.sample(env).map(|v| f(v)),
             ))),
-            Value::BuiltinFn(_) | Value::Sep => {
+            Value::BuiltinFn(_) => {
                 return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),
                 }))
             }
-            Value::Args(_) => panic!("cannot apply unary operation to args"),
+            Value::List(_) => panic!("cannot apply unary operation to args"),
         })
     }
     pub fn bin_scalar_op(

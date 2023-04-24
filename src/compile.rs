@@ -301,10 +301,10 @@ impl Compiler {
                 let full_span = left.span.union(value.span);
                 let n = left.value.expect_natural("fill count", left.span)?;
                 let args = vec![value; n];
-                left = full_span.sp(Value::Args(args));
+                left = full_span.sp(Value::List(args));
             } else if let Some(set_span) = self.try_exact(Token::Colon) {
                 // Set
-                let Value::Args(mut args) = left.value else {
+                let Value::List(mut args) = left.value else {
                      return Err(left
                         .span
                         .union(set_span)
@@ -327,10 +327,10 @@ impl Compiler {
                         }));
                     }
                 }
-                left = full_span.sp(Value::Args(args));
+                left = full_span.sp(Value::List(args));
             } else if let Some(mod_span) = self.try_exact(Token::SemiColon) {
                 // Modify
-                let Value::Args(mut args) = left.value else {
+                let Value::List(mut args) = left.value else {
                      return Err(left
                         .span
                         .union(mod_span)
@@ -353,7 +353,7 @@ impl Compiler {
                         }));
                     }
                 }
-                left = full_span.sp(Value::Args(args));
+                left = full_span.sp(Value::List(args));
             } else {
                 break;
             }
@@ -361,7 +361,7 @@ impl Compiler {
         Ok(Some(left))
     }
     fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(term) = self.try_term()? else {
+        let Some(term) = self.try_list()? else {
             return Ok(None);
         };
         let args = self.args()?;
@@ -369,15 +369,26 @@ impl Compiler {
     }
     fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
-        while let Some(arg) = self.try_term()? {
-            match arg.value {
-                Value::Args(list) => {
-                    args.extend(list);
-                }
-                _ => args.push(arg),
-            }
+        while let Some(arg) = self.try_list()? {
+            args.push(arg);
         }
         Ok(args)
+    }
+    fn try_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        if let Some(span) = self.try_exact(Token::Octothorp) {
+            let start = span;
+            let mut end = span;
+            let mut items = Vec::new();
+            while let Some(item) = self.try_term()? {
+                items.push(item);
+            }
+            if let Some(last) = items.last() {
+                end = last.span;
+            }
+            Ok(Some(start.union(end).sp(Value::List(items))))
+        } else {
+            self.try_term()
+        }
     }
     fn try_term(&mut self) -> CompileResult<Option<Sp<Value>>> {
         Ok(Some(if let Some(ident) = self.ident() {
@@ -401,8 +412,6 @@ impl Compiler {
         } else if self.try_exact(Token::Dollar).is_some() {
             self.try_expr()?
                 .ok_or_else(|| self.expected("expression"))?
-        } else if let Some(span) = self.try_exact(Token::Bar) {
-            span.sp(Value::Sep)
         } else {
             return Ok(None);
         }))
