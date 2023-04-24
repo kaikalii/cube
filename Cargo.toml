@@ -4,13 +4,13 @@ name = "cube"
 version = "0.1.0"
 
 [dependencies]
+eframe = "0.21.3"
 once_cell = "1"
 parking_lot = "0.12.1"
-eframe = "0.21.3"
 
 [dependencies.hodaun]
 features = ["notes", "output", "noise"]
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies.rand]
 features = ["small_rng"]

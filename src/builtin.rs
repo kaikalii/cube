@@ -3,23 +3,20 @@ use std::{
     f64::consts::{E, PI, TAU},
 };
 
-use hodaun::{Letter, Octave};
+use hodaun::{Letter, Octave, Stereo};
 use once_cell::sync::Lazy;
 
 use crate::{
     compile::{CompileError, CompileResult},
     lex::{Sp, Span},
+    modulus,
     node::*,
     value::Value,
-    vector::{modulus, Vector},
 };
 
 pub fn builtin_constant(name: &str) -> Option<Value> {
     Some(match name {
-        "ZERO" => Vector::ZERO.into(),
-        "X" => Vector::X.into(),
-        "Y" => Vector::Y.into(),
-        "Z" => Vector::Z.into(),
+        "ZERO" => Stereo::ZERO.into(),
         "PI" => PI.into(),
         "TAU" => TAU.into(),
         "E" => E.into(),
@@ -34,7 +31,7 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "b7" => 2f64.powf(10.0 / 12.0).into(),
         "m7" => 2f64.powf(11.0 / 12.0).into(),
         "p8" => 2.0.into(),
-        "pos" => pure_node("pos", |env| env.pos).into(),
+        "time" => pure_node("time", |env| Stereo::both(env.time)).into(),
         name => {
             let (letter, octave) = parse_note(name)?;
             letter.frequency(octave).into()
@@ -225,36 +222,25 @@ make_builtin_fns!(
                 let period = 1.0 / freq.sample(env);
                 let high = high.sample(env);
                 let falloff = falloff.sample(env);
-                period
-                    .zip(high)
-                    .zip(falloff)
-                    .with(env.pos, |((period, high), falloff), pos| {
-                        kick_wave(pos, period, high, falloff)
-                    })
+                period.zip(high).with(falloff, |(period, high), falloff| {
+                    kick_wave(env.time, period, high, falloff)
+                })
             }
         )
     ),
-    /// Get the minimum of two or more values or a vector
+    /// Get the minimum of two or more values
     (min, span, |a, (rest)| {
         let mut min = a;
-        if rest.is_empty() {
-            min = min.un_vector_op("min", span, |v| Vector::splat(v.x.min(v.y).min(v.z)))?;
-        } else {
-            for b in rest {
-                min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
-            }
+        for b in rest {
+            min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
         }
         min
     }),
-    /// Get the maximum of two or more values or a vector
+    /// Get the maximum of two or more values
     (max, span, |a, (rest)| {
         let mut max = a;
-        if rest.is_empty() {
-            max = max.un_vector_op("max", span, |v| Vector::splat(v.x.max(v.y).max(v.z)))?;
-        } else {
-            for b in rest {
-                max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
-            }
+        for b in rest {
+            max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
         }
         max
     }),
@@ -270,33 +256,6 @@ make_builtin_fns!(
     (sqrt, span, |x| x.un_scalar_op("sqrt", span, f64::sqrt)?),
     /// Get e raised to a value
     (exp, span, |x| x.un_scalar_op("exp", span, f64::exp)?),
-    /// Get the x component of a vector
-    (x, span, |v| v
-        .un_vector_op("x", span, |v| Vector::X * v.x)?),
-    /// Get the y component of a vector
-    (y, span, |v| v
-        .un_vector_op("y", span, |v| Vector::Y * v.y)?),
-    /// Get the z component of a vector
-    (z, span, |v| v
-        .un_vector_op("z", span, |v| Vector::Z * v.z)?),
-    /// Get the length of a vector
-    (len, span, |v| v
-        .un_vector_op("len", span, |v| Vector::X * v.length())?),
-    /// Create a new vector
-    ///
-    /// Passing a single value will create a vector with all components equal to that value.
-    /// Passing three values will create a vector with the x, y, and z components equal to those values.
-    (
-        vec,
-        span,
-        |x, #[default(x.clone())] y, #[default(x.clone())] z| {
-            let x = x.un_vector_op("x", span, |v| Vector::X * v.x)?;
-            let y = y.un_vector_op("y", span, |v| Vector::Y * v.y)?;
-            let z = z.un_vector_op("z", span, |v| Vector::Z * v.z)?;
-            x.bin_vector_op(y, "vec", span, |x, y| x + y)?
-                .bin_vector_op(z, "vec", span, |xy, z| xy + z)?
-        }
-    ),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
     (perbeat, |n| {
         state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq())
@@ -327,26 +286,16 @@ make_builtin_fns!(
         }
         state_node("sections", (nodes, period), move |(nodes, period), env| {
             let period = period.sample(env);
-            let i = offset
-                .zip(period)
-                .zip(env.pos)
-                .map(|((offset, period), pos)| {
-                    (modulus(pos - offset, period * nodes.len() as f64) / period) as usize
-                });
-            let x = nodes[i.x].sample(env).x;
-            let y = if i.x == i.y {
-                x
+            let i = offset.with(period, |offset, period| {
+                (modulus(env.time - offset, period * nodes.len() as f64) / period) as usize
+            });
+            let left = nodes[i.left].sample(env).left;
+            let right = if i.left == i.right {
+                left
             } else {
-                nodes[i.y].sample(env).y
+                nodes[i.right].sample(env).right
             };
-            let z = if i.x == i.z {
-                x
-            } else if i.y == i.z {
-                y
-            } else {
-                nodes[i.z].sample(env).z
-            };
-            Vector::new(x, y, z)
+            Stereo::new(left, right)
         })
     }),
     (sel, span, |(args)| {
@@ -371,36 +320,6 @@ make_builtin_fns!(
     }),
     /// Collect args into an args list that can be bound to a name
     (args, |(args)| { Value::Args(args) }),
-    /// Check if the current x position is greater than a value
-    (gtx, |x| state_node("gtx", x, move |x, env| {
-        let x = x.sample(env).x;
-        Vector::splat((x >= env.pos.x) as u8 as f64)
-    })),
-    /// Check if the current y position is greater than a value
-    (gty, |y| state_node("gty", y, move |y, env| {
-        let y = y.sample(env).y;
-        Vector::splat((y >= env.pos.y) as u8 as f64)
-    })),
-    /// Check if the current z position is greater than a value
-    (gtz, |z| state_node("gtz", z, move |z, env| {
-        let z = z.sample(env).z;
-        Vector::splat((z >= env.pos.z) as u8 as f64)
-    })),
-    /// Check if the current x position is less than a value
-    (ltx, |x| state_node("ltx", x, move |x, env| {
-        let x = x.sample(env).x;
-        Vector::splat((x < env.pos.x) as u8 as f64)
-    })),
-    /// Check if the current y position is less than a value
-    (lty, |y| state_node("lty", y, move |y, env| {
-        let y = y.sample(env).y;
-        Vector::splat((y < env.pos.y) as u8 as f64)
-    })),
-    /// Check if the current z position is less than a value
-    (ltz, |z| state_node("ltz", z, move |z, env| {
-        let z = z.sample(env).z;
-        Vector::splat((z < env.pos.z) as u8 as f64)
-    })),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

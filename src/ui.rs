@@ -3,11 +3,10 @@ use std::fs;
 use eframe::egui::*;
 use hodaun::*;
 
-use crate::{compile::compile, node::NodeSource, vector::Vector};
+use crate::{compile::compile, node::NodeSource};
 
 pub struct App {
-    output: OutputDeviceMixer<Mono>,
-    dir: Shared<Vector>,
+    output: OutputDeviceMixer<Stereo>,
     maintainer: Maintainer,
     error: Option<String>,
 }
@@ -15,11 +14,10 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         let mut output =
-            OutputDeviceMixer::<Mono>::with_default_device().unwrap_or_else(|e| panic!("{e}"));
+            OutputDeviceMixer::<Stereo>::with_default_device().unwrap_or_else(|e| panic!("{e}"));
         output.play().unwrap();
         App {
             output,
-            dir: Shared::new(Vector::X),
             maintainer: Maintainer::new(),
             error: None,
         }
@@ -44,11 +42,10 @@ impl App {
         };
         self.error = None;
         self.maintainer = Maintainer::new();
-        self.dir = Shared::new(cube.initial_dir);
         let source = NodeSource {
             root: cube.root,
-            pos: cube.initial_pos,
-            dir: self.dir.clone(),
+            time: cube.initial_pos,
+            dir: 1.0.into(),
             tempo: cube.tempo,
         }
         .maintained(&self.maintainer);
@@ -62,30 +59,6 @@ impl eframe::App for App {
             if let Some(err) = &self.error {
                 ui.label(RichText::new(err).color(Color32::RED));
             }
-            Grid::new("arrows").show(ui, |ui| {
-                let mut arrow = |ui: &mut Ui, icon: &str, vector: Vector| {
-                    let selected = self.dir.get() == vector;
-                    if ui
-                        .selectable_label(selected, RichText::new(icon).monospace())
-                        .clicked()
-                    {
-                        self.dir.set(vector);
-                    }
-                };
-                arrow(ui, "[-X  Y]", Vector::new(-1.0, 1.0, 0.0));
-                arrow(ui, "[    Y]", Vector::new(0.0, 1.0, 0.0));
-                arrow(ui, "[ X  Y]", Vector::new(1.0, 1.0, 0.0));
-                ui.end_row();
-
-                arrow(ui, "[-X   ]", Vector::new(-1.0, 0.0, 0.0));
-                ui.label("");
-                arrow(ui, "[ X   ]", Vector::new(1.0, 0.0, 0.0));
-                ui.end_row();
-
-                arrow(ui, "[-X -Y]", Vector::new(-1.0, -1.0, 0.0));
-                arrow(ui, "[   -Y]", Vector::new(0.0, -1.0, 0.0));
-                arrow(ui, "[ X -Y]", Vector::new(1.0, -1.0, 0.0));
-            });
         });
     }
 }

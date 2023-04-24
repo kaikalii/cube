@@ -10,13 +10,11 @@ use crate::{
     lex::*,
     node::*,
     value::Value,
-    vector::Vector,
 };
 
 pub struct Cube {
     pub root: NodeBox,
-    pub initial_pos: Vector,
-    pub initial_dir: Vector,
+    pub initial_pos: f64,
     pub tempo: f64,
     pub octave: i8,
 }
@@ -99,16 +97,11 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         .map(|val| val.value.into_node())
         .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
     while compiler.try_exact(Token::Newline).is_some() {}
-    let initial_pos = compiler
-        .find_binding("initial_pos")
-        .map(|val| val.value.expect_vector("initial_pos", val.span))
+    let initial_time = compiler
+        .find_binding("initial_time")
+        .map(|val| val.value.expect_number("initial_time", val.span))
         .transpose()?
-        .unwrap_or(Vector::ZERO);
-    let initial_dir = compiler
-        .find_binding("initial_dir")
-        .map(|val| val.value.expect_vector("initial_dir", val.span))
-        .transpose()?
-        .unwrap_or(Vector::X);
+        .unwrap_or(0.0);
     let tempo = compiler
         .find_binding("tempo")
         .map(|val| val.value.expect_number("tempo", val.span))
@@ -121,8 +114,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
     }
     Ok(Cube {
         root,
-        initial_pos,
-        initial_dir,
+        initial_pos: initial_time,
         tempo,
         octave: 3,
     })

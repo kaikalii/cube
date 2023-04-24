@@ -1,7 +1,0 @@
-hh = 0.3 * max 0 (saw (perbeat 4)) * noise
-snare = noise sec 0 (beat 4) $ 8::0 :1 4
-initial_dir = X + Y + Z
-xmel = X tri C3 * sec 0 (beat 4) $ 32::0 :1 0 3 6 9 12 15 18 21 24 27 30
-ymel = Y hsquare 5 C2 * sec 0 (beat 4) $ 16::0 :1 0 6 8
-zmel = Z square (sec 0 (beats 4) Eb4 Eb4 Eb4 F4) * max 0 (saw (perbeat 4)) * sec 0 (beat 4) $ 16::0 :1 0 3 4
-kick (perbeat 1) + hh + snare + xmel + ymel + zmel

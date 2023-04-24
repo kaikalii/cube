@@ -4,15 +4,15 @@ use std::{
     sync::Arc,
 };
 
-use hodaun::{Mono, Shared, Source};
+use hodaun::{Shared, Source, Stereo};
 use rand::prelude::*;
 
-use crate::vector::{modulus, Vector};
+use crate::modulus;
 
 pub struct Env {
     pub sample_rate: f64,
-    pub pos: Vector,
-    pub dir: Vector,
+    pub time: f64,
+    pub dir: f64,
     pub tempo: f64,
 }
 
@@ -24,15 +24,15 @@ impl Env {
 
 pub trait Node: fmt::Debug + Send + Sync + 'static {
     fn boxed(&self) -> NodeBox;
-    fn sample(&mut self, env: &Env) -> Vector;
+    fn sample(&mut self, env: &Env) -> Stereo;
 }
 
 impl Node for f64 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(constant_scalar_node(*self))
     }
-    fn sample(&mut self, _: &Env) -> Vector {
-        Vector::new(*self, *self, *self)
+    fn sample(&mut self, _: &Env) -> Stereo {
+        Stereo::both(*self)
     }
 }
 
@@ -60,7 +60,7 @@ impl Node for NodeBox {
     fn boxed(&self) -> NodeBox {
         self.clone()
     }
-    fn sample(&mut self, env: &Env) -> Vector {
+    fn sample(&mut self, env: &Env) -> Stereo {
         self.0.sample(env)
     }
 }
@@ -68,8 +68,8 @@ impl Node for NodeBox {
 #[derive(Clone)]
 pub struct Wave3 {
     pub name: &'static str,
-    pub one_hz: Arc<dyn Fn(Vector) -> Vector + Send + Sync>,
-    pub freqs: Vec<(NodeBox, Vector)>,
+    pub one_hz: Arc<dyn Fn(Stereo) -> Stereo + Send + Sync>,
+    pub freqs: Vec<(NodeBox, Stereo)>,
 }
 
 impl fmt::Debug for Wave3 {
@@ -85,7 +85,7 @@ impl Wave3 {
     pub fn new<I>(
         name: &'static str,
         freq: I,
-        one_hz: impl Fn(Vector) -> Vector + Send + Sync + 'static,
+        one_hz: impl Fn(Stereo) -> Stereo + Send + Sync + 'static,
     ) -> Self
     where
         I: IntoIterator,
@@ -96,7 +96,7 @@ impl Wave3 {
             one_hz: Arc::new(one_hz),
             freqs: freq
                 .into_iter()
-                .map(|n| (n.boxed(), Vector::ZERO))
+                .map(|n| (n.boxed(), Stereo::ZERO))
                 .collect(),
         }
     }
@@ -106,8 +106,8 @@ impl Node for Wave3 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, env: &Env) -> Vector {
-        let mut sample = Vector::ZERO;
+    fn sample(&mut self, env: &Env) -> Stereo {
+        let mut sample = Stereo::ZERO;
         for (freq, pos) in &mut self.freqs {
             let freq = freq.sample(env);
             sample += (self.one_hz)(*pos);
@@ -124,19 +124,19 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-pub trait NodeFn<S = ()>: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
+pub trait NodeFn<S = ()>: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
 
-impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Vector + Clone + Send + Sync + 'static {}
+impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
 
 pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn> {
     GenericNode {
         name: n.to_string(),
         state: (),
-        f: move |_: &mut (), _: &Env| Vector::splat(n),
+        f: move |_: &mut (), _: &Env| Stereo::both(n),
     }
 }
 
-pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn> {
+pub fn constant_vector_node(v: Stereo) -> GenericNode<impl NodeFn> {
     GenericNode {
         name: v.to_string(),
         state: (),
@@ -146,7 +146,7 @@ pub fn constant_vector_node(v: Vector) -> GenericNode<impl NodeFn> {
 
 pub fn pure_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn>
 where
-    F: Fn(&Env) -> Vector + Clone + Send + Sync + 'static,
+    F: Fn(&Env) -> Stereo + Clone + Send + Sync + 'static,
 {
     GenericNode {
         name: name.into(),
@@ -181,7 +181,7 @@ where
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, env: &Env) -> Vector {
+    fn sample(&mut self, env: &Env) -> Stereo {
         (self.f)(&mut self.state, env)
     }
 }
@@ -239,33 +239,29 @@ pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
 
 pub fn noise_node() -> GenericNode<impl NodeFn> {
     pure_node("noise", |env: &Env| {
-        Vector::new(
-            SmallRng::seed_from_u64(env.pos.x.to_bits()).gen(),
-            SmallRng::seed_from_u64(env.pos.y.to_bits()).gen(),
-            SmallRng::seed_from_u64(env.pos.z.to_bits()).gen(),
-        )
+        Stereo::both(SmallRng::seed_from_u64(env.time.to_bits()).gen())
     })
 }
 
 pub struct NodeSource {
     pub root: NodeBox,
-    pub pos: Vector,
-    pub dir: Shared<Vector>,
+    pub time: f64,
+    pub dir: Shared<f64>,
     pub tempo: f64,
 }
 
 impl Source for NodeSource {
-    type Frame = Mono;
+    type Frame = Stereo;
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let dir = self.dir.get();
         let env = Env {
             sample_rate,
-            pos: self.pos,
+            time: self.time,
             dir,
             tempo: self.tempo,
         };
         let sample = self.root.sample(&env);
-        self.pos += dir * (1.0 / sample_rate);
-        Some(sample.reduce(|a, b| a + b))
+        self.time += dir * (1.0 / sample_rate);
+        Some(sample)
     }
 }

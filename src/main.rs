@@ -4,7 +4,8 @@ mod lex;
 mod node;
 mod ui;
 mod value;
-mod vector;
+
+use std::ops::{Add, Rem};
 
 use ui::App;
 
@@ -22,4 +23,14 @@ fn main() {
         }),
     )
     .unwrap();
+}
+
+pub fn modulus<T, M>(a: T, m: M) -> <<<T as Rem<M>>::Output as Add<M>>::Output as Rem<M>>::Output
+where
+    M: Copy,
+    T: Rem<M>,
+    <T as Rem<M>>::Output: Add<M>,
+    <<T as Rem<M>>::Output as Add<M>>::Output: Rem<M>,
+{
+    (a % m + m) % m
 }
