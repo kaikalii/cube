@@ -1,6 +1,13 @@
-pulse = kick (perbeat 4) * sec 0 (beat 4) #1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1
-hit = noise * max 0 (saw (perbeat 4)) * sec 0 (beat 4) #0 0 0 1 0 0 1 0 0 1 0 0 1 0 0 0
-hh = 0.3 noise * max 0 (saw (perbeat 8)) * sec 0 (beat 8) #1 0 1 1 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 1 1 0 1 0 1 0 1 0 1 0
+seq = #0 0 1 0
+pulseA = sec 0 (beat 4) #1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1
+pulseB = sec 0 (beat 4) #1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0
+pulse = kick (perbeat 4) * sec 0 (beats 16) $ sel seq #pulseA pulseB
+hitA = sec 0 (beat 4) #0 0 0 1 0 0 1 0 0 1 0 0 1 0 0 0
+hitB = sec 0 (beat 4) #0 0 0 1 0 0 1 0 1 1 1 1 1 0 0 0
+hit = noise * max 0 (saw (perbeat 4)) * sec 0 (beats 16) $ sel seq #hitA hitB
+hhA = sec 0 (beat 8) #1 0 1 1 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 1 1 0 1 0 1 0 1 0 1 0
+hhB = sec 0 (beat 8) #0 0 0 0 0 0 0 0  0 0 0 0 0 0 0 0  1 0 1 0 1 0 1 0  1 1 1 1 1 1 1 1
+hh = 0.3 noise * max 0 (saw (perbeat 8)) * sec 0 (beats 16) $ sel seq #hhA hhB
 notes = 0.5 sin #(#C3 Eb4 G4) (#Eb3 G4 Bb4) (#G3 D4 B4) (#D3 F4 Ab4)
 melody = pan -1 (sec 0 (beats 4) notes) + pan 1 (sec 0.007 (beats 4) notes)
 pulse + hit + hh + melody
