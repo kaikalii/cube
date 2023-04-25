@@ -36,6 +36,7 @@ pub struct Sequence {
 pub struct Track {
     pub sound: Sp<String>,
     pub perbeat: Sp<f64>,
+    pub volume: Sp<f64>,
     pub selectors: Selectors,
 }
 

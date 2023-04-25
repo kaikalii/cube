@@ -1,6 +1,7 @@
 use std::{collections::HashMap, f64::consts::TAU, fmt};
 
 use hodaun::{Letter, Mixer, Octave, Source, Stereo};
+use rand::prelude::*;
 
 use crate::{
     ast::{self, Sheet, SheetBody},
@@ -213,6 +214,7 @@ struct ResolvedTrack {
     one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static>,
     notes: Vec<f64>,
     perbeat: f64,
+    volume: f64,
     time: f64,
     wave_time: f64,
 }
@@ -240,8 +242,12 @@ impl Source for SongSource {
             }
             let note_length = 60.0 / tempo / track.perbeat;
             let index = (track.time / note_length) as usize;
-            let freq = track.notes[index % track.notes.len()];
-            let sample = (track.one_hz)(track.wave_time);
+            let freq = track.notes[index % track.notes.len()] * track.volume;
+            let sample = if freq == 0.0 {
+                0.0
+            } else {
+                (track.one_hz)(track.wave_time)
+            };
             frame += Stereo::both(sample);
             track.wave_time += freq / sample_rate;
             track.time += 1.0 / sample_rate;
@@ -258,14 +264,19 @@ fn resolve_tracks(sheet: &Sheet, tracks: Vec<Track>) -> Vec<ResolvedTrack> {
             "square" => Box::new(square_wave),
             "saw" => Box::new(saw_wave),
             "tri" => Box::new(triangle_wave),
+            "noise" => {
+                let mut rng = SmallRng::seed_from_u64(0);
+                Box::new(move |_| rng.gen_range(-1.0..1.0))
+            }
             _ => Box::new(|t| (t * TAU).sin()),
         };
         resolved.push(ResolvedTrack {
             one_hz,
             notes: Vec::new(),
+            volume: 1.0,
+            perbeat: track.perbeat,
             time: 0.0,
             wave_time: 0.0,
-            perbeat: track.perbeat,
         });
     }
     resolve_tracks_impl(Vec::new(), sheet, &tracks, &mut resolved);

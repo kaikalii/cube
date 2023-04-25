@@ -120,6 +120,7 @@ impl Parser {
         };
         let mut sound = start_span.sp("sine".to_string());
         let mut perbeat = start_span.sp(1.0);
+        let mut volume = start_span.sp(1.0);
         while let Some(key) = self.ident() {
             match key.value.as_str() {
                 "sound" => {
@@ -129,6 +130,10 @@ impl Parser {
                 "perbeat" => {
                     self.expect(':')?;
                     perbeat = self.number()?.ok_or_else(|| self.expected("number"))?
+                }
+                "volume" => {
+                    self.expect(':')?;
+                    volume = self.number()?.ok_or_else(|| self.expected("number"))?
                 }
                 _ => return Err(key.span.sp(ParseError::UnknownKey(key.value))),
             }
@@ -143,6 +148,7 @@ impl Parser {
         Ok(Some(Track {
             sound,
             perbeat,
+            volume,
             selectors,
         }))
     }
