@@ -16,6 +16,7 @@ use crate::{
 
 pub fn builtin_constant(name: &str) -> Option<Value> {
     Some(match name {
+        "_" => 0.0.into(),
         "PI" => PI.into(),
         "TAU" => TAU.into(),
         "E" => E.into(),
@@ -342,7 +343,16 @@ make_builtin_fns!(
         args.reverse();
         call(span.sp(function), args)?.value
     }),
-    (phi, span, |f, g, h, x, [y]| {
+    (atop, span, |f, g, [x]| {
+        let gx = call(span.sp(g), x)?;
+        call(span.sp(f), vec![gx])?.value
+    }),
+    (over, span, |f, g, x, [y]| {
+        let gx = call(span.sp(g.clone()), vec![span.sp(x)])?;
+        let gy = call(span.sp(g), y)?;
+        call(span.sp(f), vec![gx, gy])?.value
+    }),
+    (fork, span, |f, g, h, x, [y]| {
         let gx = call(span.sp(g), vec![span.sp(x)])?;
         let hy = call(span.sp(h), y)?;
         call(span.sp(f), vec![gx, hy])?.value
@@ -355,10 +365,6 @@ make_builtin_fns!(
     (rhook, span, |f, g, x, [y]| {
         let gy = call(span.sp(g), y)?;
         call(span.sp(f), vec![span.sp(x), gy])?.value
-    }),
-    (comp, span, |f, g, [x]| {
-        let gx = call(span.sp(g), x)?;
-        call(span.sp(f), vec![gx])?.value
     }),
     (map, span, |f, xs| {
         let mut mapped = Vec::new();
