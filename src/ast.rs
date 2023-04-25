@@ -48,13 +48,12 @@ pub enum SelectorValue<T = Sequence> {
 }
 
 #[derive(Debug)]
-pub struct Sheet<N = Sp<NumberValue>> {
+pub struct Sheet {
     pub name: String,
-    pub body: Option<SheetBody<N>>,
+    pub body: Option<SheetBody>,
 }
 
 #[derive(Debug)]
-pub struct SheetBody<N = Sp<NumberValue>> {
-    pub unit: N,
-    pub children: Vec<Sheet<N>>,
+pub struct SheetBody {
+    pub children: Vec<Sheet>,
 }

@@ -2,7 +2,11 @@ use std::{collections::HashMap, fmt};
 
 use hodaun::{Letter, Mixer, Octave, Source, Stereo};
 
-use crate::{ast, lex::*, parse::*};
+use crate::{
+    ast::{self, Sheet, SheetBody},
+    lex::*,
+    parse::*,
+};
 
 #[derive(Debug)]
 pub enum CompileError {
@@ -42,10 +46,9 @@ pub fn compile(input: &str) -> CompileResult<Option<impl Source<Frame = Stereo>>
     }
     file.sheet
         .map(|sheet| {
-            compiler.sheet(sheet).map(|sheet| SongSource {
-                sheet,
-                tracks: compiler.tracks,
-            })
+            compiler
+                .sheet(sheet)
+                .map(|sheet| SongSource::new(sheet, compiler.tracks))
         })
         .transpose()
 }
@@ -130,7 +133,6 @@ impl Compiler {
             sound,
             perbeat,
             selectors,
-            time: 0.0,
         };
         println!("{track:#?}");
         Ok(())
@@ -158,27 +160,23 @@ impl Compiler {
         })
     }
     fn sheet_body(&self, body: ast::SheetBody) -> CompileResult<SheetBody> {
-        let unit = self.number_value(body.unit)?.value;
         let children = body
             .children
             .into_iter()
             .map(|child| self.sheet(child))
             .collect::<CompileResult<Vec<Sheet>>>()?;
-        Ok(SheetBody { unit, children })
+        Ok(SheetBody { children })
     }
 }
 
 type Selectors = ast::Selectors<Vec<f64>>;
 type SelectorValue = ast::SelectorValue<Vec<f64>>;
-type Sheet = ast::Sheet<f64>;
-type SheetBody = ast::SheetBody<f64>;
 
 #[derive(Debug)]
 struct Track {
     sound: String,
     perbeat: f64,
     selectors: Selectors,
-    time: f64,
 }
 
 fn get_sequence<'a>(path: &[String], selectors: &'a Selectors) -> Option<&'a [f64]> {
@@ -227,16 +225,52 @@ fn parse_note(name: &str) -> Option<(Letter, Octave)> {
     Some((letter, octave))
 }
 
+struct ResolvedTrack {
+    sound: String,
+    notes: Vec<f64>,
+    time: f64,
+}
+
 pub struct SongSource {
     sheet: Sheet,
-    tracks: Vec<Track>,
+    tracks: Vec<ResolvedTrack>,
+}
+
+impl SongSource {
+    fn new(sheet: Sheet, tracks: Vec<Track>) -> Self {
+        let mut resolved = Vec::with_capacity(tracks.len());
+        for track in &tracks {
+            resolved.push(ResolvedTrack {
+                sound: track.sound.clone(),
+                notes: Vec::new(),
+                time: 0.0,
+            });
+        }
+
+        Self {
+            tracks: resolve_tracks(&sheet, tracks),
+            sheet,
+        }
+    }
 }
 
 impl Source for SongSource {
     type Frame = Stereo;
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let mut frame = Stereo::ZERO;
-        for track in &self.tracks {}
+        for track in &mut self.tracks {}
         Some(frame)
     }
+}
+
+fn resolve_tracks(sheet: &Sheet, tracks: Vec<Track>) -> Vec<ResolvedTrack> {
+    let mut resolved = Vec::with_capacity(tracks.len());
+    for track in &tracks {
+        resolved.push(ResolvedTrack {
+            sound: track.sound.clone(),
+            notes: Vec::new(),
+            time: 0.0,
+        });
+    }
+    resolved
 }

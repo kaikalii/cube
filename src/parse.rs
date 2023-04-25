@@ -99,19 +99,13 @@ impl Parser {
         let Some(name) = self.ident() else {
             return Ok(None);
         };
-        let start = self.curr;
-        let body = if let Some(unit) = self.number_value()? {
-            if self.try_exact('{').is_some() {
-                let mut children = Vec::new();
-                while let Some(sheet) = self.sheet()? {
-                    children.push(sheet);
-                }
-                self.expect('}')?;
-                Some(SheetBody { unit, children })
-            } else {
-                self.curr = start;
-                None
+        let body = if self.try_exact('{').is_some() {
+            let mut children = Vec::new();
+            while let Some(sheet) = self.sheet()? {
+                children.push(sheet);
             }
+            self.expect('}')?;
+            Some(SheetBody { children })
         } else {
             None
         };
