@@ -368,7 +368,7 @@ impl Compiler {
         Ok(Some(left))
     }
     fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(term) = self.try_list()? else {
+        let Some(term) = self.try_bar_list()? else {
             return Ok(None);
         };
         let args = self.args()?;
@@ -376,13 +376,28 @@ impl Compiler {
     }
     fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
-        while let Some(arg) = self.try_list()? {
+        while let Some(arg) = self.try_bracket_list()? {
             args.push(arg);
         }
         Ok(args)
     }
-    fn try_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        if let Some(span) = self.try_exact(Token::Octothorp) {
+    fn try_bracket_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        if let Some(span) = self.try_exact(Token::OpenBracket) {
+            let start = span;
+            let mut end = span;
+            let mut items = Vec::new();
+            while let Some(item) = self.try_bar_list()? {
+                items.push(item.value);
+                end = item.span;
+            }
+            self.expect(Token::CloseBracket, "`]`")?;
+            Ok(Some(start.union(end).sp(Value::List(items))))
+        } else {
+            self.try_bar_list()
+        }
+    }
+    fn try_bar_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        if let Some(span) = self.try_exact(Token::Bar) {
             let start = span;
             let mut end = span;
             let mut items = Vec::new();
