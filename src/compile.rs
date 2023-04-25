@@ -1,10 +1,11 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, f64::consts::TAU, fmt};
 
 use hodaun::{Letter, Mixer, Octave, Source, Stereo};
 
 use crate::{
     ast::{self, Sheet, SheetBody},
     lex::*,
+    node::*,
     parse::*,
 };
 
@@ -134,7 +135,7 @@ impl Compiler {
             perbeat,
             selectors,
         };
-        println!("{track:#?}");
+        self.tracks.push(track);
         Ok(())
     }
     fn selectors(&self, selectors: ast::Selectors) -> CompileResult<Selectors> {
@@ -179,23 +180,6 @@ struct Track {
     selectors: Selectors,
 }
 
-fn get_sequence<'a>(path: &[String], selectors: &'a Selectors) -> Option<&'a [f64]> {
-    if path.is_empty() {
-        return None;
-    }
-    if path.len() == 1 {
-        return match selectors.get(&path[0])? {
-            ast::SelectorValue::Selectors(_) => None,
-            ast::SelectorValue::Sequence(seq) => Some(seq),
-        };
-    }
-    let (head, tail) = path.split_first()?;
-    match selectors.get(head)? {
-        ast::SelectorValue::Selectors(selectors) => get_sequence(tail, selectors),
-        ast::SelectorValue::Sequence(seq) => Some(seq),
-    }
-}
-
 fn parse_note(name: &str) -> Option<(Letter, Octave)> {
     if !name.ends_with(|c: char| c.is_ascii_digit()) {
         return None;
@@ -226,30 +210,21 @@ fn parse_note(name: &str) -> Option<(Letter, Octave)> {
 }
 
 struct ResolvedTrack {
-    sound: String,
+    one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static>,
     notes: Vec<f64>,
+    perbeat: f64,
     time: f64,
+    wave_time: f64,
 }
 
 pub struct SongSource {
-    sheet: Sheet,
     tracks: Vec<ResolvedTrack>,
 }
 
 impl SongSource {
     fn new(sheet: Sheet, tracks: Vec<Track>) -> Self {
-        let mut resolved = Vec::with_capacity(tracks.len());
-        for track in &tracks {
-            resolved.push(ResolvedTrack {
-                sound: track.sound.clone(),
-                notes: Vec::new(),
-                time: 0.0,
-            });
-        }
-
         Self {
             tracks: resolve_tracks(&sheet, tracks),
-            sheet,
         }
     }
 }
@@ -258,7 +233,19 @@ impl Source for SongSource {
     type Frame = Stereo;
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let mut frame = Stereo::ZERO;
-        for track in &mut self.tracks {}
+        let tempo = 120.0;
+        for track in &mut self.tracks {
+            if track.notes.is_empty() {
+                continue;
+            }
+            let note_length = 60.0 / tempo / track.perbeat;
+            let index = (track.time / note_length) as usize;
+            let freq = track.notes[index % track.notes.len()];
+            let sample = (track.one_hz)(track.wave_time);
+            frame += Stereo::both(sample);
+            track.wave_time += freq / sample_rate;
+            track.time += 1.0 / sample_rate;
+        }
         Some(frame)
     }
 }
@@ -266,11 +253,48 @@ impl Source for SongSource {
 fn resolve_tracks(sheet: &Sheet, tracks: Vec<Track>) -> Vec<ResolvedTrack> {
     let mut resolved = Vec::with_capacity(tracks.len());
     for track in &tracks {
+        let one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static> = match track.sound.as_str()
+        {
+            "square" => Box::new(square_wave),
+            "saw" => Box::new(saw_wave),
+            "tri" => Box::new(triangle_wave),
+            _ => Box::new(|t| (t * TAU).sin()),
+        };
         resolved.push(ResolvedTrack {
-            sound: track.sound.clone(),
+            one_hz,
             notes: Vec::new(),
             time: 0.0,
+            wave_time: 0.0,
+            perbeat: track.perbeat,
         });
     }
+    resolve_tracks_impl(Vec::new(), sheet, &tracks, &mut resolved);
     resolved
+}
+
+fn resolve_tracks_impl(
+    mut path: Vec<String>,
+    sheet: &Sheet,
+    tracks: &[Track],
+    resolved: &mut [ResolvedTrack],
+) {
+    path.push(sheet.name.clone());
+    for (track, resolved) in tracks.iter().zip(&mut *resolved) {
+        if let Some(seq) = get_sequence(&path, &track.selectors) {
+            resolved.notes.extend_from_slice(seq);
+        }
+    }
+    if let Some(body) = &sheet.body {
+        for child in &body.children {
+            resolve_tracks_impl(path.clone(), child, tracks, resolved);
+        }
+    }
+}
+
+fn get_sequence<'a>(path: &[String], selectors: &'a Selectors) -> Option<&'a [f64]> {
+    let (head, tail) = path.split_first()?;
+    match selectors.get(head)? {
+        ast::SelectorValue::Selectors(selectors) => get_sequence(tail, selectors),
+        ast::SelectorValue::Sequence(seq) => Some(seq),
+    }
 }
