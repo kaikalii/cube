@@ -170,6 +170,18 @@ macro_rules! make_builtin_fns {
 }
 
 make_builtin_fns!(
+    (add, |a, b| state_node("add", (a, b), |(a, b), env| {
+        a.sample(env) + b.sample(env)
+    })),
+    (sub, |a, b| state_node("sub", (a, b), |(a, b), env| {
+        a.sample(env) - b.sample(env)
+    })),
+    (mul, |a, b| state_node("mul", (a, b), |(a, b), env| {
+        a.sample(env) * b.sample(env)
+    })),
+    (div, |a, b| state_node("div", (a, b), |(a, b), env| {
+        a.sample(env) / b.sample(env)
+    })),
     /// Generate a sine wave from a frequency
     (sin, |freqs| freqs.distribute(|freq| Wave3::new(
         "sine",
