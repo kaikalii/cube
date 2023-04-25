@@ -93,7 +93,13 @@ type BuiltinFnMap = HashMap<String, (ArgCount, Box<BuiltinFn>)>;
 macro_rules! make_builtin_fns {
     ($(
         $(#[doc = $doc:literal])*
-        ($name:ident, $($span:ident,)? |$($(#[default($default:expr)])? $arg:ident),* $($(,)?($varargs:ident))? $(,)?| $body:expr)),*
+        ($name:ident, $($span:ident,)?
+        |
+            $($(#[default($default:expr)])? $arg:ident),*
+            $($(,)?[$varargs:ident])?
+            $(,($arg2:ident))*
+            $(,)?
+        | $body:expr)),*
     $(,)*) => {
         #[allow(unused_assignments, unreachable_code, unused_mut)]
         fn builtin_fns() -> BuiltinFnMap {
@@ -219,7 +225,7 @@ make_builtin_fns!(
         )
     ),
     /// Get the minimum of two or more values
-    (min, span, |a, (rest)| {
+    (min, span, |a, [rest]| {
         let mut min = a;
         for b in rest {
             min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
@@ -227,7 +233,7 @@ make_builtin_fns!(
         min
     }),
     /// Get the maximum of two or more values
-    (max, span, |a, (rest)| {
+    (max, span, |a, [rest]| {
         let mut max = a;
         for b in rest {
             max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
@@ -313,20 +319,38 @@ make_builtin_fns!(
         }
         Value::List(selected)
     }),
-    (join, |(values)| {
+    (join, |[values]| {
         let mut joined = Vec::new();
         for value in values {
             joined.extend(value.value.into_list());
         }
         Value::List(joined)
     }),
-    (bind, span, |function, (args)| Value::Bind(
+    (bind, span, |function, [args]| Value::Bind(
         span.sp(function).into(),
         args
     )),
-    (flip, span, |function, (args)| {
+    (flip, span, |function, [args]| {
         args.reverse();
         call(span.sp(function), args)?.value
+    }),
+    (phi, span, |f, g, h, x, [y]| {
+        let gx = call(span.sp(g), vec![span.sp(x)])?;
+        let hy = call(span.sp(h), y)?;
+        call(span.sp(f), vec![gx, hy])?.value
+    }),
+    (lhook, span, |f, g, x, [y]| {
+        let gx = call(span.sp(g), vec![span.sp(x)])?;
+        y.insert(0, gx);
+        call(span.sp(f), y)?.value
+    }),
+    (rhook, span, |f, g, x, [y]| {
+        let gy = call(span.sp(g), y)?;
+        call(span.sp(f), vec![span.sp(x), gy])?.value
+    }),
+    (comp, span, |f, g, [x]| {
+        let gx = call(span.sp(g), x)?;
+        call(span.sp(f), vec![gx])?.value
     })
 );
 
