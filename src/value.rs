@@ -35,9 +35,9 @@ impl fmt::Debug for Value {
 impl Node for Value {
     fn boxed(&self) -> NodeBox {
         match self {
-            Value::Number(n) => NodeBox::new(constant_scalar_node(*n)),
+            Value::Number(n) => NodeBox::new(*n),
             Value::Node(node) => node.clone(),
-            Value::BuiltinFn(_) | Value::Bind(..) => NodeBox::new(constant_scalar_node(0.0)),
+            Value::BuiltinFn(_) | Value::Bind(..) => NodeBox::new(0.0),
             Value::List(items) => NodeBox::new(state_node("list", items.clone(), |items, env| {
                 items
                     .iter_mut()

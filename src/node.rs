@@ -29,7 +29,7 @@ pub trait Node: fmt::Debug + Send + Sync + 'static {
 
 impl Node for f64 {
     fn boxed(&self) -> NodeBox {
-        NodeBox::new(constant_scalar_node(*self))
+        NodeBox::new(*self)
     }
     fn sample(&mut self, _: &Env) -> Stereo {
         Stereo::both(*self)
@@ -117,14 +117,6 @@ pub struct GenericNode<F, S = ()> {
 pub trait NodeFn<S = ()>: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
 
 impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
-
-pub fn constant_scalar_node(n: f64) -> GenericNode<impl NodeFn> {
-    GenericNode {
-        name: n.to_string(),
-        state: (),
-        f: move |_: &mut (), _: &Env| Stereo::both(n),
-    }
-}
 
 pub fn pure_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn>
 where

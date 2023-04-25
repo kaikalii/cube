@@ -102,7 +102,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
     let root = compiler
         .try_expr()?
         .map(|val| val.value.into_node())
-        .unwrap_or_else(|| NodeBox::new(constant_scalar_node(0.0)));
+        .unwrap_or_else(|| NodeBox::new(0.0));
     while compiler.try_exact(Token::Newline).is_some() {}
     let initial_time = compiler
         .find_binding("initial_time")
