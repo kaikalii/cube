@@ -1,0 +1,5 @@
+- Make some common functions typed nodes
+- Binary sequence literals
+- atop operator (.)
+- Fix fill/list precedence
+- Note memory
