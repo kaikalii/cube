@@ -34,9 +34,9 @@ pub struct Sequence {
 
 #[derive(Debug)]
 pub struct Track {
-    pub sound: Sp<String>,
-    pub perbeat: Sp<f64>,
-    pub volume: Sp<f64>,
+    pub sound: String,
+    pub perbeat: f64,
+    pub volume: f64,
     pub selectors: Selectors,
 }
 

@@ -1,12 +1,11 @@
 use std::{collections::HashMap, f64::consts::TAU, fmt};
 
-use hodaun::{Letter, Mixer, Octave, Saw, Source, Square, Stereo, Triangle, Waveform};
+use hodaun::*;
 use rand::prelude::*;
 
 use crate::{
     ast::{self, Sheet, SheetBody},
     lex::*,
-    node::*,
     parse::*,
 };
 
@@ -32,10 +31,6 @@ impl fmt::Display for CompileError {
 }
 
 pub type CompileResult<T = ()> = Result<T, Sp<CompileError>>;
-
-pub struct Song {
-    pub root: Mixer<Stereo>,
-}
 
 pub fn compile(input: &str) -> CompileResult<Option<impl Source<Frame = Stereo>>> {
     let file = parse(input).map_err(|e| e.map(CompileError::Parse))?;
@@ -130,14 +125,11 @@ impl Compiler {
         }))
     }
     fn track(&mut self, track: ast::Track) -> CompileResult {
-        let sound = track.sound.value;
-        let perbeat = track.perbeat.value;
-        let volume = track.volume.value;
         let selectors = self.selectors(track.selectors)?;
         let track = Track {
-            sound,
-            volume,
-            perbeat,
+            sound: track.sound,
+            volume: track.volume,
+            perbeat: track.perbeat,
             selectors,
         };
         self.tracks.push(track);

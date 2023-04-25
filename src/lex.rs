@@ -106,6 +106,16 @@ impl From<char> for Token {
     }
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Ident(s) => write!(f, "{s}"),
+            Token::Number(s) => write!(f, "{s}"),
+            Token::Char(c) => write!(f, "{c}"),
+        }
+    }
+}
+
 struct Lexer {
     chars: Vec<char>,
     loc: Loc,

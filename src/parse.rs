@@ -5,7 +5,10 @@ use crate::{ast::*, lex::*};
 #[derive(Debug)]
 pub enum ParseError {
     InvalidCharacter(char),
-    Expected(String),
+    Expected {
+        expectation: String,
+        got: Option<Token>,
+    },
     InvalidNumber(String),
     UnknownKey(String),
 }
@@ -14,7 +17,14 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseError::InvalidCharacter(c) => write!(f, "Invalid character: {}", c),
-            ParseError::Expected(expectation) => write!(f, "Expected {}", expectation),
+            ParseError::Expected {
+                expectation,
+                got: Some(got),
+            } => write!(f, "Expected {expectation}, got {got}"),
+            ParseError::Expected {
+                expectation,
+                got: None,
+            } => write!(f, "Expected {expectation}, got end of file"),
             ParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
             ParseError::UnknownKey(s) => write!(f, "Unknown key: {s}"),
         }
@@ -32,13 +42,12 @@ pub fn parse(input: &str) -> ParseResult<File> {
     let tokens = lex(input).map_err(|e| e.map(ParseError::InvalidCharacter))?;
     let mut parser = Parser { tokens, curr: 0 };
     let mut items = Vec::new();
-    let mut sheet = None;
     while let Some(item) = parser.item()? {
         items.push(item);
-        if let Some(sh) = parser.sheet()? {
-            sheet = Some(sh);
-            break;
-        }
+    }
+    let mut sheet = None;
+    if let Some(sh) = parser.sheet()? {
+        sheet = Some(sh);
     }
     if parser.curr < parser.tokens.len() {
         return Err(parser.expected("end of file"));
@@ -60,27 +69,30 @@ impl Parser {
         self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
             .map(|sp| sp.span)
     }
-    fn last_span(&self) -> Span {
+    fn expect(&mut self, token: impl Into<Token>) -> ParseResult {
+        let token = token.into();
+        if self.try_exact(token.clone()).is_some() {
+            Ok(())
+        } else {
+            Err(self.expected(token.to_string()))
+        }
+    }
+    fn expected(&self, expectation: impl Into<String>) -> Sp<ParseError> {
         if let Some(token) = self
             .tokens
             .get(self.curr.saturating_sub(1))
             .or_else(|| self.tokens.last())
         {
-            token.span
+            token.span.sp(ParseError::Expected {
+                expectation: expectation.into(),
+                got: Some(token.value.clone()),
+            })
         } else {
-            Span::default()
+            Span::default().sp(ParseError::Expected {
+                expectation: expectation.into(),
+                got: None,
+            })
         }
-    }
-    fn expect(&mut self, token: impl Into<Token> + Copy + fmt::Debug) -> ParseResult {
-        if self.try_exact(token.into()).is_some() {
-            Ok(())
-        } else {
-            Err(self.expected(format!("{token:?}")))
-        }
-    }
-    fn expected(&self, expectation: impl Into<String>) -> Sp<ParseError> {
-        self.last_span()
-            .sp(ParseError::Expected(expectation.into()))
     }
     fn item(&mut self) -> ParseResult<Option<Item>> {
         Ok(Some(if self.try_exact("sequence").is_some() {
@@ -115,25 +127,29 @@ impl Parser {
         }))
     }
     fn track(&mut self) -> ParseResult<Option<Track>> {
-        let Some(start_span) = self.try_exact('(') else {
+        if self.try_exact("track").is_none() {
             return Ok(None);
-        };
-        let mut sound = start_span.sp("sine".to_string());
-        let mut perbeat = start_span.sp(1.0);
-        let mut volume = start_span.sp(0.3);
+        }
+        self.expect('(')?;
+        let mut sound = "sine".to_string();
+        let mut perbeat = 1.0;
+        let mut volume = 0.3;
         while let Some(key) = self.ident() {
             match key.value.as_str() {
                 "sound" => {
                     self.expect(':')?;
-                    sound = self.ident().ok_or_else(|| self.expected("sound name"))?
+                    sound = self
+                        .ident()
+                        .ok_or_else(|| self.expected("sound name"))?
+                        .value
                 }
                 "perbeat" => {
                     self.expect(':')?;
-                    perbeat = self.number()?.ok_or_else(|| self.expected("number"))?
+                    perbeat = self.number()?.ok_or_else(|| self.expected("number"))?.value
                 }
                 "volume" => {
                     self.expect(':')?;
-                    volume = self.number()?.ok_or_else(|| self.expected("number"))?
+                    volume = self.number()?.ok_or_else(|| self.expected("number"))?.value
                 }
                 _ => return Err(key.span.sp(ParseError::UnknownKey(key.value))),
             }
