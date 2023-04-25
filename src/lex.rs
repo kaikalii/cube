@@ -91,20 +91,7 @@ impl<T> Sp<T> {
 pub enum Token {
     Ident(String),
     Number(String),
-    BinOp(BinOp),
-    Dollar,
-    Colon,
-    DoubleColon,
-    SemiColon,
-    Octothorp,
-    Equals,
-    OpenParen,
-    CloseParen,
-    OpenCurly,
-    CloseCurly,
-    OpenBracket,
-    CloseBracket,
-    Comma,
+    Char(char),
 }
 
 impl<'a> From<&'a str> for Token {
@@ -113,16 +100,10 @@ impl<'a> From<&'a str> for Token {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Lt,
-    Le,
-    Gt,
-    Ge,
+impl From<char> for Token {
+    fn from(value: char) -> Self {
+        Token::Char(value)
+    }
 }
 
 struct Lexer {
@@ -163,26 +144,9 @@ impl Lexer {
             let start = self.loc;
             if let Some(c) = self.next_char() {
                 tokens.push(match c {
-                    '=' => self.end(start, Token::Equals),
-                    ',' => self.end(start, Token::Comma),
-                    '(' => self.end(start, Token::OpenParen),
-                    ')' => self.end(start, Token::CloseParen),
-                    '{' => self.end(start, Token::OpenCurly),
-                    '}' => self.end(start, Token::CloseCurly),
-                    '[' => self.end(start, Token::OpenBracket),
-                    ']' => self.end(start, Token::CloseBracket),
-                    '$' => self.end(start, Token::Dollar),
-                    ':' if self.next_char_exact(':') => self.end(start, Token::DoubleColon),
-                    ':' => self.end(start, Token::Colon),
-                    ';' => self.end(start, Token::SemiColon),
-                    '#' => self.end(start, Token::Octothorp),
-                    '+' => self.end(start, Token::BinOp(BinOp::Add)),
-                    '*' => self.end(start, Token::BinOp(BinOp::Mul)),
-                    '/' => self.end(start, Token::BinOp(BinOp::Div)),
-                    '<' if self.next_char_exact('=') => self.end(start, Token::BinOp(BinOp::Le)),
-                    '<' => self.end(start, Token::BinOp(BinOp::Lt)),
-                    '>' if self.next_char_exact('=') => self.end(start, Token::BinOp(BinOp::Ge)),
-                    '>' => self.end(start, Token::BinOp(BinOp::Gt)),
+                    ',' | '(' | ')' | '{' | '}' | '[' | ']' | ':' => {
+                        self.end(start, Token::Char(c))
+                    }
                     c if c.is_ascii_digit() || c == '-' => {
                         if self.next_char_exact('-') {
                             while self.next_char_if(|c| c != '\n').is_some() {}
@@ -201,7 +165,7 @@ impl Lexer {
                         self.end(
                             start,
                             if num == "-" {
-                                Token::BinOp(BinOp::Sub)
+                                Token::Char('-')
                             } else {
                                 Token::Number(num)
                             },

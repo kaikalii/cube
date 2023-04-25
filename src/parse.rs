@@ -5,7 +5,7 @@ use crate::{ast::*, lex::*};
 #[derive(Debug)]
 pub enum ParseError {
     InvalidCharacter(char),
-    Expected(&'static str),
+    Expected(String),
     InvalidNumber(String),
     UnknownKey(String),
 }
@@ -71,15 +71,16 @@ impl Parser {
             Span::default()
         }
     }
-    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> ParseResult {
+    fn expect(&mut self, token: impl Into<Token> + Copy + fmt::Debug) -> ParseResult {
         if self.try_exact(token.into()).is_some() {
             Ok(())
         } else {
-            Err(self.expected(expectation))
+            Err(self.expected(format!("{token:?}")))
         }
     }
-    fn expected(&self, expectation: &'static str) -> Sp<ParseError> {
-        self.last_span().sp(ParseError::Expected(expectation))
+    fn expected(&self, expectation: impl Into<String>) -> Sp<ParseError> {
+        self.last_span()
+            .sp(ParseError::Expected(expectation.into()))
     }
     fn item(&mut self) -> ParseResult<Option<Item>> {
         Ok(Some(if self.try_exact("sequence").is_some() {
@@ -98,15 +99,19 @@ impl Parser {
         let Some(name) = self.ident() else {
             return Ok(None);
         };
+        let start = self.curr;
         let body = if let Some(unit) = self.number_value()? {
-            let mut children = Vec::new();
-            if self.try_exact(Token::OpenCurly).is_some() {
+            if self.try_exact('{').is_some() {
+                let mut children = Vec::new();
                 while let Some(sheet) = self.sheet()? {
                     children.push(sheet);
                 }
-                self.expect(Token::CloseCurly, "`}`")?;
+                self.expect('}')?;
+                Some(SheetBody { unit, children })
+            } else {
+                self.curr = start;
+                None
             }
-            Some(SheetBody { unit, children })
         } else {
             None
         };
@@ -116,7 +121,7 @@ impl Parser {
         }))
     }
     fn track(&mut self) -> ParseResult<Option<Track>> {
-        let Some(start_span) = self.try_exact(Token::OpenParen) else {
+        let Some(start_span) = self.try_exact('(') else {
             return Ok(None);
         };
         let mut sound = start_span.sp("sine".to_string());
@@ -124,23 +129,23 @@ impl Parser {
         while let Some(key) = self.ident() {
             match key.value.as_str() {
                 "sound" => {
-                    self.expect(Token::Colon, "`:`")?;
+                    self.expect(':')?;
                     sound = self.ident().ok_or_else(|| self.expected("sound name"))?
                 }
                 "perbeat" => {
-                    self.expect(Token::Colon, "`:`")?;
+                    self.expect(':')?;
                     perbeat = self.number()?.ok_or_else(|| self.expected("number"))?
                 }
                 _ => return Err(key.span.sp(ParseError::UnknownKey(key.value))),
             }
-            if self.try_exact(Token::Comma).is_none() {
+            if self.try_exact(',').is_none() {
                 break;
             }
         }
-        self.expect(Token::CloseParen, "`)`")?;
-        self.expect(Token::OpenCurly, "`{`")?;
+        self.expect(')')?;
+        self.expect('{')?;
         let selectors = self.selectors()?;
-        self.expect(Token::CloseCurly, "`}`")?;
+        self.expect('}')?;
         Ok(Some(Track {
             sound,
             perbeat,
@@ -150,14 +155,14 @@ impl Parser {
     fn selectors(&mut self) -> ParseResult<Selectors> {
         let mut selectors = Selectors::new();
         while let Some(name) = self.ident() {
-            if self.try_exact(Token::OpenCurly).is_some() {
+            if self.try_exact('{').is_some() {
                 let sub = self.selectors()?;
                 selectors.insert(name.value, SelectorValue::Selectors(sub));
-                self.expect(Token::CloseCurly, "`}`")?;
+                self.expect('}')?;
             } else if let Some(seq) = self.sequence()? {
                 selectors.insert(name.value, SelectorValue::Sequence(seq));
             } else {
-                return Err(self.expected("`{` or `(`"));
+                return Err(self.expected("{ or ("));
             }
         }
         Ok(selectors)
@@ -166,7 +171,7 @@ impl Parser {
         let Some(value) = self.sequence_value()? else {
             return Ok(None);
         };
-        let indices = if self.try_exact(Token::Colon).is_some() {
+        let indices = if self.try_exact(':').is_some() {
             Some(
                 self.sequence_value()?
                     .ok_or_else(|| self.expected("indices"))?,
@@ -179,12 +184,12 @@ impl Parser {
     fn sequence_value(&mut self) -> ParseResult<Option<SequenceValue>> {
         Ok(Some(if let Some(ident) = self.ident() {
             SequenceValue::Ident(ident)
-        } else if self.try_exact(Token::OpenBracket).is_some() {
+        } else if self.try_exact('[').is_some() {
             let mut values = Vec::new();
             while let Some(value) = self.number_value()? {
                 values.push(value);
             }
-            self.expect(Token::CloseBracket, "`]`")?;
+            self.expect(']')?;
             SequenceValue::List(values)
         } else {
             return Ok(None);

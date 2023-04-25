@@ -116,7 +116,7 @@ impl Compiler {
                 if let Some((letter, octave)) = parse_note(&ident) {
                     letter.frequency(octave)
                 } else {
-                    todo!()
+                    todo!("{ident}")
                 }
             }
             ast::NumberValue::Number(num) => num,
