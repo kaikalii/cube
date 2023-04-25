@@ -1,6 +1,6 @@
 use std::{collections::HashMap, f64::consts::TAU, fmt};
 
-use hodaun::{Letter, Mixer, Octave, Source, Stereo};
+use hodaun::{Letter, Mixer, Octave, Saw, Source, Square, Stereo, Triangle, Waveform};
 use rand::prelude::*;
 
 use crate::{
@@ -118,7 +118,9 @@ impl Compiler {
     fn number_value(&self, val: Sp<ast::NumberValue>) -> CompileResult<Sp<f64>> {
         Ok(val.span.sp(match val.value {
             ast::NumberValue::Ident(ident) => {
-                if let Some((letter, octave)) = parse_note(&ident) {
+                if ident == "_" {
+                    0.0
+                } else if let Some((letter, octave)) = parse_note(&ident) {
                     letter.frequency(octave)
                 } else {
                     todo!("{ident}")
@@ -130,9 +132,11 @@ impl Compiler {
     fn track(&mut self, track: ast::Track) -> CompileResult {
         let sound = track.sound.value;
         let perbeat = track.perbeat.value;
+        let volume = track.volume.value;
         let selectors = self.selectors(track.selectors)?;
         let track = Track {
             sound,
+            volume,
             perbeat,
             selectors,
         };
@@ -178,6 +182,7 @@ type SelectorValue = ast::SelectorValue<Vec<f64>>;
 struct Track {
     sound: String,
     perbeat: f64,
+    volume: f64,
     selectors: Selectors,
 }
 
@@ -212,21 +217,53 @@ fn parse_note(name: &str) -> Option<(Letter, Octave)> {
 
 struct ResolvedTrack {
     one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static>,
-    notes: Vec<f64>,
+    sections: Vec<Vec<f64>>,
     perbeat: f64,
     volume: f64,
-    time: f64,
     wave_time: f64,
 }
 
+struct Section {
+    beats: f64,
+}
+
 pub struct SongSource {
+    sections: Vec<Section>,
     tracks: Vec<ResolvedTrack>,
+    section: usize,
+    section_time: f64,
 }
 
 impl SongSource {
     fn new(sheet: Sheet, tracks: Vec<Track>) -> Self {
+        let mut resolved = Vec::with_capacity(tracks.len());
+        for track in &tracks {
+            let one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static> =
+                match track.sound.as_str() {
+                    "square" => Box::new(|time| Square.one_hz(time) / Square::LOUDNESS),
+                    "saw" => Box::new(|time| Saw.one_hz(time) / Saw::LOUDNESS),
+                    "tri" => Box::new(|time| Triangle.one_hz(time) / Triangle::LOUDNESS),
+                    "noise" => {
+                        let mut rng = SmallRng::seed_from_u64(0);
+                        Box::new(move |_| rng.gen_range(-1.0..1.0))
+                    }
+                    _ => Box::new(|t| (t * TAU).sin()),
+                };
+            resolved.push(ResolvedTrack {
+                one_hz,
+                sections: Vec::new(),
+                volume: track.volume,
+                perbeat: track.perbeat,
+                wave_time: 0.0,
+            });
+        }
+        let mut sections = Vec::new();
+        resolve_tracks_impl(Vec::new(), &sheet, &tracks, &mut resolved, &mut sections);
         Self {
-            tracks: resolve_tracks(&sheet, tracks),
+            tracks: resolved,
+            section: 0,
+            sections,
+            section_time: 0.0,
         }
     }
 }
@@ -236,51 +273,31 @@ impl Source for SongSource {
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let mut frame = Stereo::ZERO;
         let tempo = 120.0;
+        let section = &self.sections[self.section];
         for track in &mut self.tracks {
-            if track.notes.is_empty() {
+            let notes = &track.sections[self.section];
+            if notes.is_empty() {
                 continue;
             }
             let note_length = 60.0 / tempo / track.perbeat;
-            let index = (track.time / note_length) as usize;
-            let freq = track.notes[index % track.notes.len()] * track.volume;
+            let index = (self.section_time / note_length) as usize;
+            let freq = notes[index % notes.len()];
             let sample = if freq == 0.0 {
                 0.0
             } else {
-                (track.one_hz)(track.wave_time)
+                (track.one_hz)(track.wave_time) * track.volume
             };
             frame += Stereo::both(sample);
             track.wave_time += freq / sample_rate;
-            track.time += 1.0 / sample_rate;
+        }
+        self.section_time += 1.0 / sample_rate;
+        let section_length = 60.0 / tempo * section.beats;
+        if self.section_time >= section_length {
+            self.section = (self.section + 1) % self.sections.len();
+            self.section_time = 0.0;
         }
         Some(frame)
     }
-}
-
-fn resolve_tracks(sheet: &Sheet, tracks: Vec<Track>) -> Vec<ResolvedTrack> {
-    let mut resolved = Vec::with_capacity(tracks.len());
-    for track in &tracks {
-        let one_hz: Box<dyn FnMut(f64) -> f64 + Send + Sync + 'static> = match track.sound.as_str()
-        {
-            "square" => Box::new(square_wave),
-            "saw" => Box::new(saw_wave),
-            "tri" => Box::new(triangle_wave),
-            "noise" => {
-                let mut rng = SmallRng::seed_from_u64(0);
-                Box::new(move |_| rng.gen_range(-1.0..1.0))
-            }
-            _ => Box::new(|t| (t * TAU).sin()),
-        };
-        resolved.push(ResolvedTrack {
-            one_hz,
-            notes: Vec::new(),
-            volume: 1.0,
-            perbeat: track.perbeat,
-            time: 0.0,
-            wave_time: 0.0,
-        });
-    }
-    resolve_tracks_impl(Vec::new(), sheet, &tracks, &mut resolved);
-    resolved
 }
 
 fn resolve_tracks_impl(
@@ -288,17 +305,22 @@ fn resolve_tracks_impl(
     sheet: &Sheet,
     tracks: &[Track],
     resolved: &mut [ResolvedTrack],
+    sections: &mut Vec<Section>,
 ) {
     path.push(sheet.name.clone());
+    let mut beats = 0f64;
     for (track, resolved) in tracks.iter().zip(&mut *resolved) {
         if let Some(seq) = get_sequence(&path, &track.selectors) {
-            resolved.notes.extend_from_slice(seq);
+            beats = beats.max(seq.len() as f64 * 1.0 / track.perbeat);
+            resolved.sections.push(seq.to_vec());
         }
     }
     if let Some(body) = &sheet.body {
         for child in &body.children {
-            resolve_tracks_impl(path.clone(), child, tracks, resolved);
+            resolve_tracks_impl(path.clone(), child, tracks, resolved, sections);
         }
+    } else {
+        sections.push(Section { beats });
     }
 }
 

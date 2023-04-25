@@ -120,7 +120,7 @@ impl Parser {
         };
         let mut sound = start_span.sp("sine".to_string());
         let mut perbeat = start_span.sp(1.0);
-        let mut volume = start_span.sp(1.0);
+        let mut volume = start_span.sp(0.3);
         while let Some(key) = self.ident() {
             match key.value.as_str() {
                 "sound" => {
