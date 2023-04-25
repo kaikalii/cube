@@ -368,11 +368,16 @@ impl Compiler {
         Ok(Some(left))
     }
     fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(term) = self.try_bar_list()? else {
-            return Ok(None);
-        };
+        let Some(term) = self.try_bracket_list()? else {
+                return Ok(None);
+            };
+        let bind = self.try_exact(Token::At).is_some();
         let args = self.args()?;
-        call(term, args).map(Some)
+        if bind {
+            Ok(Some(term.span.sp(Value::Bind(term.into(), args))))
+        } else {
+            call(term, args).map(Some)
+        }
     }
     fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();

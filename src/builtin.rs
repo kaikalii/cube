@@ -326,10 +326,6 @@ make_builtin_fns!(
         }
         Value::List(joined)
     }),
-    (bind, span, |function, [args]| Value::Bind(
-        span.sp(function).into(),
-        args
-    )),
     (flip, span, |function, [args]| {
         args.reverse();
         call(span.sp(function), args)?.value
