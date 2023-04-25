@@ -442,9 +442,13 @@ impl Compiler {
     }
 }
 
-fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
+pub fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
     let f_name = match f_val.value {
         Value::BuiltinFn(name) => name,
+        Value::Bind(f, mut bind_args) => {
+            bind_args.append(&mut args);
+            return call(*f, bind_args);
+        }
         _ => {
             let mut value = f_val.value;
             let mut span = f_val.span;

@@ -6,7 +6,7 @@ use hodaun::Stereo;
 
 use crate::{
     compile::{CompileError, CompileResult},
-    lex::Span,
+    lex::{Sp, Span},
     node::*,
 };
 
@@ -16,6 +16,7 @@ pub enum Value {
     #[allow(dead_code)]
     Node(NodeBox),
     BuiltinFn(String),
+    Bind(Box<Sp<Self>>, Vec<Sp<Self>>),
     List(Vec<Self>),
 }
 
@@ -25,6 +26,7 @@ impl fmt::Debug for Value {
             Value::Number(n) => write!(f, "{n}"),
             Value::Node(node) => write!(f, "{node:?}"),
             Value::BuiltinFn(name) => write!(f, "{name}"),
+            Value::Bind(func, args) => write!(f, "{func:?}{args:?}"),
             Value::List(_) => write!(f, "args"),
         }
     }
@@ -35,7 +37,7 @@ impl Node for Value {
         match self {
             Value::Number(n) => NodeBox::new(constant_scalar_node(*n)),
             Value::Node(node) => node.clone(),
-            Value::BuiltinFn(_) => NodeBox::new(constant_scalar_node(0.0)),
+            Value::BuiltinFn(_) | Value::Bind(..) => NodeBox::new(constant_scalar_node(0.0)),
             Value::List(items) => NodeBox::new(state_node("list", items.clone(), |items, env| {
                 items
                     .iter_mut()
@@ -47,7 +49,7 @@ impl Node for Value {
         match self {
             Value::Number(n) => Stereo::both(*n),
             Value::Node(node) => node.sample(env),
-            Value::BuiltinFn(_) => Stereo::ZERO,
+            Value::BuiltinFn(_) | Value::Bind(..) => Stereo::ZERO,
             Value::List(items) => items
                 .iter_mut()
                 .fold(Stereo::ZERO, |acc, item| acc + item.sample(env)),
@@ -67,6 +69,7 @@ impl Value {
             Value::Number(_) => "number",
             Value::Node(_) => "node",
             Value::BuiltinFn(_) => "builtin function",
+            Value::Bind(_, _) => "bound function",
             Value::List(_) => "args",
         }
     }
@@ -117,7 +120,7 @@ impl Value {
                 node,
                 move |node, env| node.sample(env).map(|v| f(v)),
             ))),
-            Value::BuiltinFn(_) => {
+            Value::BuiltinFn(_) | Value::Bind(..) => {
                 return Err(span.sp(CompileError::InvalidUnaryOperation {
                     op: op_name,
                     operand: self.type_name(),

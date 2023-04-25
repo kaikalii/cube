@@ -7,7 +7,7 @@ use hodaun::{Letter, Octave, Stereo};
 use once_cell::sync::Lazy;
 
 use crate::{
-    compile::{CompileError, CompileResult},
+    compile::{call, CompileError, CompileResult},
     lex::{Sp, Span},
     modulus,
     node::*,
@@ -319,6 +319,14 @@ make_builtin_fns!(
             joined.extend(value.value.into_list());
         }
         Value::List(joined)
+    }),
+    (bind, span, |function, (args)| Value::Bind(
+        span.sp(function).into(),
+        args
+    )),
+    (flip, span, |function, (args)| {
+        args.reverse();
+        call(span.sp(function), args)?.value
     })
 );
 
