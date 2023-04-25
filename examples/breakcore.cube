@@ -10,6 +10,6 @@ hhA = part 8 1 0 1 1 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 1 1 0 1 0 1 0 1 0 1 0
 hhB = part 8 $ join (16::0) 1 0 1 0 1 0 1 0 (8::1)
 hh = 0.3 noise * max 0 (saw (perbeat 8)) * sec 0 (beats 16) $ sel seq |hhA hhB
 notes = 0.5 sin [|C3 Eb4 G4 |Eb3 G4 Bb4 |G3 D4 B4 |D3 F4 Ab4]
-offset_notes = flip @ sec notes (beats 4)
-melody = pan -1 (offset_notes 0) + pan 1 (offset_notes 0.007)
+offset_notes = rhook @ pan (flip @ sec notes (beats 4))
+melody = offset_notes -1 0 + offset_notes 1 0.007
 pulse + hit + hh + melody

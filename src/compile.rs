@@ -369,8 +369,8 @@ impl Compiler {
     }
     fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let Some(term) = self.try_bracket_list()? else {
-                return Ok(None);
-            };
+            return Ok(None);
+        };
         let bind = self.try_exact(Token::At).is_some();
         let args = self.args()?;
         if bind {

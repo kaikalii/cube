@@ -359,7 +359,14 @@ make_builtin_fns!(
     (comp, span, |f, g, [x]| {
         let gx = call(span.sp(g), x)?;
         call(span.sp(f), vec![gx])?.value
-    })
+    }),
+    (map, span, |f, xs| {
+        let mut mapped = Vec::new();
+        for x in xs.into_list() {
+            mapped.push(call(span.sp(f.clone()), vec![span.sp(x)])?.value);
+        }
+        Value::List(mapped)
+    }),
 );
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
