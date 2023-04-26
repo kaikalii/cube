@@ -2,4 +2,3 @@
 - Binary sequence literals
 - atop operator (.)
 - Fix fill/list precedence
-- Note memory

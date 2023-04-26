@@ -5,6 +5,8 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
+use hodaun::{Letter, Octave};
+
 use crate::{
     builtin::{builtin_constant, BUILTINS},
     lex::*,
@@ -16,7 +18,6 @@ pub struct Cube {
     pub root: NodeBox,
     pub initial_pos: f64,
     pub tempo: f64,
-    pub octave: i8,
 }
 
 #[derive(Debug)]
@@ -92,6 +93,8 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         scopes: vec![Scope {
             bindings: HashMap::new(),
         }],
+        last_octave: 3,
+        last_freq: Letter::C.frequency(3),
     };
     while compiler.try_exact(Token::Newline).is_some() {}
     while compiler.item()? {
@@ -121,7 +124,6 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         root,
         initial_pos: initial_time,
         tempo,
-        octave: 3,
     })
 }
 
@@ -129,6 +131,8 @@ struct Compiler {
     tokens: Vec<Sp<Token>>,
     curr: usize,
     scopes: Vec<Scope>,
+    last_octave: Octave,
+    last_freq: f64,
 }
 
 struct Scope {
@@ -421,6 +425,15 @@ impl Compiler {
                 ident.map(Value::BuiltinFn)
             } else if let Some(val) = builtin_constant(&ident.value) {
                 ident.span.sp(val)
+            } else if let Some((letter, oct)) = parse_note(&ident.value) {
+                let freq = letter.frequency(oct);
+                self.last_freq = freq;
+                self.last_octave = oct;
+                ident.span.sp(Value::Number(freq))
+            } else if let Some(letter) = parse_letter(&ident.value) {
+                let freq = letter.frequency(self.last_octave);
+                self.last_freq = freq;
+                ident.span.sp(Value::Number(freq))
             } else {
                 return Err(ident.map(CompileError::UnknownIdent));
             }
@@ -435,6 +448,8 @@ impl Compiler {
         } else if self.try_exact(Token::Dollar).is_some() {
             self.try_expr()?
                 .ok_or_else(|| self.expected("expression"))?
+        } else if let Some(span) = self.try_exact(Token::Tilde) {
+            span.sp(Value::Number(self.last_freq))
         } else {
             return Ok(None);
         }))
@@ -487,4 +502,37 @@ pub fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Valu
         }));
     }
     Ok(f_val.span.sp(f(args, f_val.span)?))
+}
+
+fn parse_letter(name: &str) -> Option<Letter> {
+    Some(match name {
+        "A" => Letter::A,
+        "Ab" => Letter::Ab,
+        "A#" => Letter::Ash,
+        "B" => Letter::B,
+        "Bb" => Letter::Bb,
+        "C" => Letter::C,
+        "C#" => Letter::Csh,
+        "D" => Letter::D,
+        "Db" => Letter::Db,
+        "D#" => Letter::Dsh,
+        "E" => Letter::E,
+        "Eb" => Letter::Eb,
+        "F" => Letter::F,
+        "F#" => Letter::Fsh,
+        "G" => Letter::G,
+        "Gb" => Letter::Gb,
+        "G#" => Letter::Gsh,
+        _ => return None,
+    })
+}
+
+fn parse_note(name: &str) -> Option<(Letter, Octave)> {
+    if !name.ends_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    };
+    let octave: Octave = name[name.len() - 1..].parse().unwrap();
+    let letter = &name[..name.len() - 1];
+    let letter = parse_letter(letter)?;
+    Some((letter, octave))
 }

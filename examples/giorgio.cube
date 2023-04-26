@@ -1,9 +1,9 @@
 hh = sec 0 (beats 64) |0 0 1 1 * $ 0.3 noise sec 0 (beat 16) |1 0 0 0
 snare = sec 0 (beats 64) |0 1 1 1 * noise sec 0 (beat 4) $ 8::0 :1 4
 riff = |1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0
-As = sel riff |A2 A3 B3 C4 E4
-Es = sel riff |E2 E3 F#3 G3 B3
-Fs = sel riff |F2 F3 G3 A3 C4
-Gs = sel riff |G2 G3 A3 B3 D4
+As = sel riff |A2 A3 B C4 E
+Es = sel riff |E2 E3 F# G B
+Fs = sel riff |F2 F3 G A C4
+Gs = sel riff |G2 G3 A B D4
 melody = 0.3 hsquare 5 $ sec 0 (beat 4) $ join As As Es Es As As Es Es Fs Gs Es Es Fs Gs Es Es
 kick (perbeat 1) + snare + hh + melody

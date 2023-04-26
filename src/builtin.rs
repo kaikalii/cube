@@ -1,9 +1,9 @@
 use std::{
     collections::HashMap,
-    f64::consts::{E, PI, TAU},
+    f64::consts::{PI, TAU},
 };
 
-use hodaun::{Letter, Octave, Stereo};
+use hodaun::Stereo;
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -19,7 +19,6 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "_" => 0.0.into(),
         "PI" => PI.into(),
         "TAU" => TAU.into(),
-        "E" => E.into(),
         "INF" => f64::INFINITY.into(),
         "noise" => noise_node().into(),
         "m2" => 2f64.powf(2.0 / 12.0).into(),
@@ -32,40 +31,8 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
         "m7" => 2f64.powf(11.0 / 12.0).into(),
         "p8" => 2.0.into(),
         "time" => pure_node("time", |env| Stereo::both(env.time)).into(),
-        name => {
-            let (letter, octave) = parse_note(name)?;
-            letter.frequency(octave).into()
-        }
-    })
-}
-
-fn parse_note(name: &str) -> Option<(Letter, Octave)> {
-    if !name.ends_with(|c: char| c.is_ascii_digit()) {
-        return None;
-    };
-    let octave: Octave = name[name.len() - 1..].parse().unwrap();
-    let letter = &name[..name.len() - 1];
-    let letter = match letter {
-        "A" => Letter::A,
-        "Ab" => Letter::Ab,
-        "A#" => Letter::Ash,
-        "B" => Letter::B,
-        "Bb" => Letter::Bb,
-        "C" => Letter::C,
-        "C#" => Letter::Csh,
-        "D" => Letter::D,
-        "Db" => Letter::Db,
-        "D#" => Letter::Dsh,
-        "E" => Letter::E,
-        "Eb" => Letter::Eb,
-        "F" => Letter::F,
-        "F#" => Letter::Fsh,
-        "G" => Letter::G,
-        "Gb" => Letter::Gb,
-        "G#" => Letter::Gsh,
         _ => return None,
-    };
-    Some((letter, octave))
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
