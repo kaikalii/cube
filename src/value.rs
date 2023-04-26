@@ -70,7 +70,7 @@ impl Value {
             Value::Node(_) => "node",
             Value::BuiltinFn(_) => "builtin function",
             Value::Bind(_, _) => "bound function",
-            Value::List(_) => "args",
+            Value::List(_) => "list",
         }
     }
     pub fn into_list(self) -> Vec<Self> {
@@ -89,12 +89,6 @@ impl Value {
         match self {
             Value::Number(n) => Ok(*n),
             _ => Err(span.sp(CompileError::ExpectedNumber(name))),
-        }
-    }
-    pub fn expect_vector(&self, name: &'static str, span: Span) -> CompileResult<Stereo> {
-        match self {
-            Value::Number(n) => Ok(Stereo::both(*n)),
-            _ => Err(span.sp(CompileError::ExpectedVector(name))),
         }
     }
     pub fn distribute<F, V>(self, f: F) -> Self

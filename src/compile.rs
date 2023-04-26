@@ -40,7 +40,6 @@ pub enum CompileError {
     },
     ExpectedNatural(&'static str),
     ExpectedNumber(&'static str),
-    ExpectedVector(&'static str),
     IndexOutOfBounds {
         index: usize,
         len: usize,
@@ -72,7 +71,6 @@ impl fmt::Display for CompileError {
                 write!(f, "Expected {name} to be a natural number")
             }
             CompileError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
-            CompileError::ExpectedVector(name) => write!(f, "Expected {name} to be a vector"),
             CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }

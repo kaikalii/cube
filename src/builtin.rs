@@ -287,19 +287,19 @@ make_builtin_fns!(
     (beats, |n| {
         state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq())
     }),
-    (sperbeat, span, |n, values| {
+    (sperbeat, |n, values| {
         let perbeat = state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq());
-        section(0.0.into(), perbeat, values, span)?
+        section(0.0, perbeat, values)?
     }),
-    (sbeat, span, |n, values| {
+    (sbeat, |n, values| {
         let beat = state_node("beat", n, move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         });
-        section(0.0.into(), beat, values, span)?
+        section(0.0, beat, values)?
     }),
-    (sbeats, span, |n, values| {
+    (sbeats, |n, values| {
         let beats = state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq());
-        section(0.0.into(), beats, values, span)?
+        section(0.0, beats, values)?
     }),
     /// Create looping sections from some values
     ///
@@ -309,8 +309,8 @@ make_builtin_fns!(
     /// ```
     /// square 110 * max 0 (saw (sec 0 1 2 8))
     /// ```
-    (sec, span, |offset, period, values| section(
-        offset, period, values, span
+    (sec, |offset, period, values| section(
+        offset, period, values,
     )?),
     (sel, span, |indices, values| {
         let indices = indices.into_list();
@@ -372,33 +372,26 @@ make_builtin_fns!(
 );
 
 fn section(
-    offset: Value,
+    offset: impl Node + Clone,
     period: impl Node + Clone,
     values: Value,
-    span: Span,
 ) -> CompileResult<Value> {
-    let offset = offset.expect_vector("offset", span)?;
     let nodes: Vec<NodeBox> = values
         .into_list()
         .into_iter()
         .map(|v| v.into_node())
         .collect();
-    Ok(
-        state_node("sections", (nodes, period), move |(nodes, period), env| {
-            let period = period.sample(env);
-            let i = offset.with(period, |offset, period| {
-                (modulus(env.time - offset, period * nodes.len() as f64) / period) as usize
-            });
-            let left = nodes[i.left].sample(env).left;
-            let right = if i.left == i.right {
-                left
-            } else {
-                nodes[i.right].sample(env).right
-            };
-            Stereo::new(left, right)
-        })
-        .into(),
+    Ok(state_node(
+        "sections",
+        (nodes, offset, period),
+        move |(nodes, offset, period), env| {
+            let period = period.sample(env).average();
+            let offset = offset.sample(env).average();
+            let i = (modulus(env.time - offset, period * nodes.len() as f64) / period) as usize;
+            nodes[i].sample(env)
+        },
     )
+    .into())
 }
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);
