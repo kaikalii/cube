@@ -45,7 +45,6 @@ pub enum CompileError {
         index: usize,
         len: usize,
     },
-    CannotSet(&'static str),
     MistmatchedLengths {
         a: usize,
         b: usize,
@@ -75,7 +74,6 @@ impl fmt::Display for CompileError {
             CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
-            CompileError::CannotSet(name) => write!(f, "Cannot set {name}"),
             CompileError::MistmatchedLengths { a, b } => {
                 write!(f, "Mismatched lengths: {a} and {b}")
             }
@@ -254,7 +252,7 @@ impl Compiler {
         Ok(Some(left))
     }
     fn try_cmp_op(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_set()? else {
+        let Some(mut left) = self.try_call()? else {
             return Ok(None);
         };
 
@@ -265,7 +263,7 @@ impl Compiler {
             Token::BinOp(BinOp::Gt) => Some(BinOp::Gt),
             _ => None,
         }) {
-            let right = self.try_set()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.try_call()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             fn cmp(a: f64, b: f64) -> Ordering {
                 a.partial_cmp(&b)
@@ -294,78 +292,6 @@ impl Compiler {
                     })?,
                 _ => unreachable!(),
             });
-        }
-        Ok(Some(left))
-    }
-    fn try_set(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_call()? else {
-            return Ok(None);
-        };
-        loop {
-            if self.try_exact(Token::DoubleColon).is_some() {
-                // Fill
-                let value = self
-                    .try_call()?
-                    .ok_or_else(|| self.expected("expression"))?;
-                let full_span = left.span.union(value.span);
-                let n = left.value.expect_natural("fill count", left.span)?;
-                let args = vec![value.value; n];
-                left = full_span.sp(Value::List(args));
-            } else if let Some(set_span) = self.try_exact(Token::Colon) {
-                // Set
-                let Value::List(mut args) = left.value else {
-                     return Err(left
-                        .span
-                        .union(set_span)
-                        .sp(CompileError::CannotSet(left.value.type_name())));
-                };
-                let mut indices = self.args()?;
-                let Some(last_arg) = indices.last() else {
-                    return Err(self.expected("arguments"));
-                };
-                let full_span = left.span.union(last_arg.span);
-                let value = indices.remove(0).value;
-                for nval in indices {
-                    let n = nval.value.expect_natural("index", nval.span)?;
-                    if let Some(spot) = args.get_mut(n) {
-                        *spot = value.clone();
-                    } else {
-                        return Err(nval.span.sp(CompileError::IndexOutOfBounds {
-                            index: n,
-                            len: args.len(),
-                        }));
-                    }
-                }
-                left = full_span.sp(Value::List(args));
-            } else if let Some(mod_span) = self.try_exact(Token::SemiColon) {
-                // Modify
-                let Value::List(mut args) = left.value else {
-                     return Err(left
-                        .span
-                        .union(mod_span)
-                        .sp(CompileError::CannotSet(left.value.type_name())));
-                };
-                let mut indices = self.args()?;
-                let Some(last_arg) = indices.last() else {
-                    return Err(self.expected("arguments"));
-                };
-                let full_span = left.span.union(last_arg.span);
-                let f_val = indices.remove(0);
-                for nval in indices {
-                    let n = nval.value.expect_natural("index", nval.span)?;
-                    if let Some(value) = args.get_mut(n) {
-                        *value = call(f_val.clone(), vec![left.span.sp(value.clone())])?.value;
-                    } else {
-                        return Err(nval.span.sp(CompileError::IndexOutOfBounds {
-                            index: n,
-                            len: args.len(),
-                        }));
-                    }
-                }
-                left = full_span.sp(Value::List(args));
-            } else {
-                break;
-            }
         }
         Ok(Some(left))
     }
