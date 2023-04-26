@@ -446,6 +446,8 @@ fn parse_hex(name: &str) -> Option<Value> {
             c as u8 - b'a' + 10
         } else if ('A'..='F').contains(&c) {
             c as u8 - b'A' + 10
+        } else if c == '_' {
+            continue;
         } else {
             return None;
         };
