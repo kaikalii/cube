@@ -45,7 +45,7 @@ impl Node for Value {
             })),
         }
     }
-    fn sample(&mut self, env: &Env) -> Stereo {
+    fn sample(&mut self, env: &mut Env) -> Stereo {
         match self {
             Value::Number(n) => Stereo::both(*n),
             Value::Node(node) => node.sample(env),

@@ -277,19 +277,19 @@ make_builtin_fns!(
         let perbeat = state_node("perbeat", n.val, move |n, env| {
             n.sample(env) * env.beat_freq()
         });
-        section(0.0, perbeat, values.val)?
+        section(perbeat, values.val)?
     }),
     (sbeat, |n, values| {
         let beat = state_node("beat", n.val, move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         });
-        section(0.0, beat, values.val)?
+        section(beat, values.val)?
     }),
     (sbeats, |n, values| {
         let beats = state_node("beats", n.val, move |n, env| {
             n.sample(env) / env.beat_freq()
         });
-        section(0.0, beats, values.val)?
+        section(beats, values.val)?
     }),
     /// Create looping sections from some values
     ///
@@ -299,9 +299,7 @@ make_builtin_fns!(
     /// ```
     /// square 110 * max 0 (saw (sec 0 1 2 8))
     /// ```
-    (sec, |offset, period, values| section(
-        offset.val, period.val, values.val,
-    )?),
+    (sec, |period, values| section(period.val, values.val)?),
     (sel, span, |indices, values| {
         let indices = indices.val.into_list();
         let values = values.val.into_list();
@@ -317,6 +315,15 @@ make_builtin_fns!(
             selected.push(value);
         }
         Value::List(selected)
+    }),
+    (offset, |offset, value| {
+        state_node("offset", (offset.val, value.val), |(offset, value), env| {
+            let offset = offset.sample(env).average();
+            env.time += offset;
+            let value = value.sample(env);
+            env.time -= offset;
+            value
+        })
     }),
     (join, |[values]| {
         let mut joined = Vec::new();
@@ -367,27 +374,20 @@ make_builtin_fns!(
     (bind, |f, [args]| Value::Bind(f.into(), args)),
 );
 
-fn section(
-    offset: impl Node + Clone,
-    period: impl Node + Clone,
-    values: Value,
-) -> CompileResult<Value> {
+fn section(period: impl Node + Clone, values: Value) -> CompileResult<Value> {
     let nodes: Vec<NodeBox> = values
         .into_list()
         .into_iter()
         .map(|v| v.into_node())
         .collect();
-    Ok(state_node(
-        "sections",
-        (nodes, offset, period),
-        move |(nodes, offset, period), env| {
+    Ok(
+        state_node("sections", (nodes, period), move |(nodes, period), env| {
             let period = period.sample(env).average();
-            let offset = offset.sample(env).average();
-            let i = (modulus(env.time - offset, period * nodes.len() as f64) / period) as usize;
+            let i = (modulus(env.time, period * nodes.len() as f64) / period) as usize;
             nodes[i].sample(env)
-        },
+        })
+        .into(),
     )
-    .into())
 }
 
 pub static BUILTINS: Lazy<BuiltinFnMap> = Lazy::new(builtin_fns);

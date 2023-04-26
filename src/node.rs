@@ -9,29 +9,29 @@ use rand::prelude::*;
 
 use crate::modulus;
 
-pub struct Env {
+pub struct Env<'a> {
     pub sample_rate: f64,
     pub time: f64,
     pub dir: f64,
-    pub tempo: f64,
+    pub tempo: &'a mut f64,
 }
 
-impl Env {
+impl<'a> Env<'a> {
     pub fn beat_freq(&self) -> f64 {
-        self.tempo / 60.0
+        *self.tempo / 60.0
     }
 }
 
 pub trait Node: fmt::Debug + Send + Sync + 'static {
     fn boxed(&self) -> NodeBox;
-    fn sample(&mut self, env: &Env) -> Stereo;
+    fn sample(&mut self, env: &mut Env) -> Stereo;
 }
 
 impl Node for f64 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(*self)
     }
-    fn sample(&mut self, _: &Env) -> Stereo {
+    fn sample(&mut self, _: &mut Env) -> Stereo {
         Stereo::both(*self)
     }
 }
@@ -60,7 +60,7 @@ impl Node for NodeBox {
     fn boxed(&self) -> NodeBox {
         self.clone()
     }
-    fn sample(&mut self, env: &Env) -> Stereo {
+    fn sample(&mut self, env: &mut Env) -> Stereo {
         self.0.sample(env)
     }
 }
@@ -98,7 +98,7 @@ impl Node for Wave3 {
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, env: &Env) -> Stereo {
+    fn sample(&mut self, env: &mut Env) -> Stereo {
         let mut sample = Stereo::ZERO;
         let freq = self.freq.sample(env).average();
         sample += (self.one_hz)(self.time);
@@ -114,18 +114,18 @@ pub struct GenericNode<F, S = ()> {
     pub f: F,
 }
 
-pub trait NodeFn<S = ()>: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
+pub trait NodeFn<S = ()>: Fn(&mut S, &mut Env) -> Stereo + Clone + Send + Sync + 'static {}
 
-impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &Env) -> Stereo + Clone + Send + Sync + 'static {}
+impl<F, S> NodeFn<S> for F where F: Fn(&mut S, &mut Env) -> Stereo + Clone + Send + Sync + 'static {}
 
 pub fn pure_node<F>(name: impl Into<String>, f: F) -> GenericNode<impl NodeFn>
 where
-    F: Fn(&Env) -> Stereo + Clone + Send + Sync + 'static,
+    F: Fn(&mut Env) -> Stereo + Clone + Send + Sync + 'static,
 {
     GenericNode {
         name: name.into(),
         state: (),
-        f: move |_: &mut (), env: &Env| f(env),
+        f: move |_: &mut (), env: &mut Env| f(env),
     }
 }
 
@@ -155,7 +155,7 @@ where
     fn boxed(&self) -> NodeBox {
         NodeBox::new(self.clone())
     }
-    fn sample(&mut self, env: &Env) -> Stereo {
+    fn sample(&mut self, env: &mut Env) -> Stereo {
         (self.f)(&mut self.state, env)
     }
 }
@@ -212,7 +212,7 @@ pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
 }
 
 pub fn noise_node() -> GenericNode<impl NodeFn> {
-    pure_node("noise", |env: &Env| {
+    pure_node("noise", |env: &mut Env| {
         Stereo::both(SmallRng::seed_from_u64(env.time.to_bits()).gen())
     })
 }
@@ -228,13 +228,13 @@ impl Source for NodeSource {
     type Frame = Stereo;
     fn next(&mut self, sample_rate: f64) -> Option<Self::Frame> {
         let dir = self.dir.get();
-        let env = Env {
+        let mut env = Env {
             sample_rate,
             time: self.time,
             dir,
-            tempo: self.tempo,
+            tempo: &mut self.tempo,
         };
-        let sample = self.root.sample(&env);
+        let sample = self.root.sample(&mut env);
         self.time += dir * (1.0 / sample_rate);
         Some(sample)
     }
