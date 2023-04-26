@@ -1,7 +1,6 @@
-hh = 0.3 noise sec 0 (beat 16) |1 0 0 0
-snare = noise sec 0 (beat 4) $ 8::0 :1 4
-f = 51.91
-baseline_notes = sec 0 (beat 4) $ 8::f ;b7 3 ;p8 6
+hh = 0.3 noise sbeat 16 x1
+snare = noise sbeat 4 x01
+baseline_notes = sbeat 4 $ 8::Ab1 ;b7 3 ;p8 6
 baseline = (max 0 $ 0.3 + 0.7 saw (perbeat 4)) hsaw 20 baseline_notes
-melody = 0.3 tri (8 f) * sec 0 (beat 4) $ 16::0 :1 8 10
+melody = 0.3 tri (Ab4) * sbeat 4 x0050
 kick (perbeat 1) + hh + snare + baseline + melody

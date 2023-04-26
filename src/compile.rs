@@ -434,6 +434,8 @@ impl Compiler {
                 let freq = letter.frequency(self.last_octave);
                 self.last_freq = freq;
                 ident.span.sp(Value::Number(freq))
+            } else if let Some(value) = parse_hex(&ident.value) {
+                ident.span.sp(value)
             } else {
                 return Err(ident.map(CompileError::UnknownIdent));
             }
@@ -535,4 +537,24 @@ fn parse_note(name: &str) -> Option<(Letter, Octave)> {
     let letter = &name[..name.len() - 1];
     let letter = parse_letter(letter)?;
     Some((letter, octave))
+}
+
+fn parse_hex(name: &str) -> Option<Value> {
+    let name = name.strip_prefix('x')?;
+    let mut values = Vec::new();
+    for c in name.chars() {
+        let n = if c.is_ascii_digit() {
+            c as u8 - b'0'
+        } else if ('a'..='f').contains(&c) {
+            c as u8 - b'a' + 10
+        } else if ('A'..='F').contains(&c) {
+            c as u8 - b'A' + 10
+        } else {
+            return None;
+        };
+        for i in (0..4).rev() {
+            values.push(Value::Number(((n >> (3 - i)) & 1) as f64));
+        }
+    }
+    Some(Value::List(values))
 }
