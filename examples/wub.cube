@@ -1,0 +1,3 @@
+lowpass (1000 pos.sin.perbeat.sbeat 1 |2 4) (square (sbeats 4 |C2 A1))
+kick . perbeat 1
+noise sbeat 4 x01

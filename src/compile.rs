@@ -339,6 +339,8 @@ impl Compiler {
             res
         } else if let Some(span) = self.exact(Token::Tilde) {
             span.sp(self.last_val.clone())
+        } else if self.exact(Token::Period).is_some() {
+            self.call()?.ok_or_else(|| self.expected("expression"))?
         } else {
             return Ok(None);
         };

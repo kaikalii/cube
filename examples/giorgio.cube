@@ -9,4 +9,4 @@ As = riff |A2 A3 B C4 E
 Es = riff |E2 E3 F# G B
 Fs = riff |F2 F3 G A C4
 Gs = riff |G2 G3 A B D4
-0.3 hsquare 5 (sbeat 4 (flatten (sel |0~ 1~ 0~ 1~ 2 3 1~ 2 3 1~ |As Es Fs Gs)))
+0.3 hsquare 5 . sbeat 4 . flatten . sel |0~ 1~ 0~ 1~ 2 3 1~ 2 3 1~ |As Es Fs Gs
