@@ -50,7 +50,10 @@ impl Default for Span {
 
 impl Span {
     pub fn sp<T>(self, value: T) -> Sp<T> {
-        Sp { value, span: self }
+        Sp {
+            val: value,
+            span: self,
+        }
     }
     pub fn union(self, other: Span) -> Span {
         Span {
@@ -62,19 +65,19 @@ impl Span {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sp<T> {
-    pub value: T,
+    pub val: T,
     pub span: Span,
 }
 impl<T: fmt::Display> fmt::Display for Sp<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.span.start, self.value)
+        write!(f, "{}: {}", self.span.start, self.val)
     }
 }
 
 impl<T> Sp<T> {
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Sp<U> {
         Sp {
-            value: f(self.value),
+            val: f(self.val),
             span: self.span,
         }
     }

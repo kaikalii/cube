@@ -91,8 +91,8 @@ macro_rules! make_builtin_fns {
                 let args = ArgCount { min, max };
                 map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span| {
                     let mut args = args.into_iter();
-                    $(let mut $arg = args.next().map(|arg| arg.value).unwrap_or_else(|| {
-                        $(return $default.into();)?
+                    $(let mut $arg = args.next().unwrap_or_else(|| {
+                        $(return _span.sp($default.into());)?
                         unreachable!()
                     });)*
                     $(let $span = _span;)?
@@ -138,53 +138,66 @@ macro_rules! make_builtin_fns {
 }
 
 make_builtin_fns!(
-    (add, |a, b| state_node("add", (a, b), |(a, b), env| {
-        a.sample(env) + b.sample(env)
-    })),
-    (sub, |a, b| state_node("sub", (a, b), |(a, b), env| {
-        a.sample(env) - b.sample(env)
-    })),
-    (mul, |a, b| state_node("mul", (a, b), |(a, b), env| {
-        a.sample(env) * b.sample(env)
-    })),
-    (div, |a, b| state_node("div", (a, b), |(a, b), env| {
-        a.sample(env) / b.sample(env)
-    })),
+    (add, |a, b| state_node(
+        "add",
+        (a.val, b.val),
+        |(a, b), env| { a.sample(env) + b.sample(env) }
+    )),
+    (sub, |a, b| state_node(
+        "sub",
+        (a.val, b.val),
+        |(a, b), env| { a.sample(env) - b.sample(env) }
+    )),
+    (mul, |a, b| state_node(
+        "mul",
+        (a.val, b.val),
+        |(a, b), env| { a.sample(env) * b.sample(env) }
+    )),
+    (div, |a, b| state_node(
+        "div",
+        (a.val, b.val),
+        |(a, b), env| { a.sample(env) / b.sample(env) }
+    )),
     /// Generate a sine wave from a frequency
-    (sin, |freqs| freqs.distribute(|freq| Wave3::new(
+    (sin, |freqs| freqs.val.distribute(|freq| Wave3::new(
         "sine",
         freq,
         |time| { (time * TAU).sin() }
     ))),
     /// Generate a square wave from a frequency
-    (square, |freqs| freqs.distribute(|freq| Wave3::new(
+    (square, |freqs| freqs.val.distribute(|freq| Wave3::new(
         "square",
         freq,
         square_wave
     ))),
     /// Generate a saw wave from a frequency
     (saw, |freqs| freqs
+        .val
         .distribute(|freq| Wave3::new("saw", freq, saw_wave))),
     /// Generate a triangle wave from a frequency
-    (tri, |freqs| freqs.distribute(|freq| Wave3::new(
+    (tri, |freqs| freqs.val.distribute(|freq| Wave3::new(
         "triangle",
         freq,
         triangle_wave
     ))),
     /// Generate an additive square wave from a frequency and number of harmonics
-    (hsquare, span, |n, freqs| {
-        let n = n.expect_number("n", span)? as usize;
-        freqs.distribute(|freq| Wave3::new("hsquare", freq, move |time| true_square_wave(time, n)))
+    (hsquare, |n, freqs| {
+        let n = n.val.expect_number("n", n.span)? as usize;
+        freqs
+            .val
+            .distribute(|freq| Wave3::new("hsquare", freq, move |time| true_square_wave(time, n)))
     }),
     /// Generate an additive saw wave from a frequency and number of harmonics
-    (hsaw, span, |n, freqs| {
-        let n = n.expect_number("n", span)? as usize;
-        freqs.distribute(|freq| Wave3::new("hsaw", freq, move |time| true_saw_wave(time, n)))
+    (hsaw, |n, freqs| {
+        let n = n.val.expect_number("n", n.span)? as usize;
+        freqs
+            .val
+            .distribute(|freq| Wave3::new("hsaw", freq, move |time| true_saw_wave(time, n)))
     }),
     /// Generate an additive triangle wave from a frequency and number of harmonics
-    (htri, span, |n, freqs| {
-        let n = n.expect_number("n", span)? as usize;
-        freqs.distribute(|freq| {
+    (htri, |n, freqs| {
+        let n = n.val.expect_number("n", n.span)? as usize;
+        freqs.val.distribute(|freq| {
             Wave3::new("htriangle", freq, move |time| true_triangle_wave(time, n))
         })
     }),
@@ -193,7 +206,7 @@ make_builtin_fns!(
         kick,
         |freq, #[default(40)] high, #[default(0.5)] falloff| state_node(
             "kick",
-            (freq, high, falloff),
+            (freq.val, high.val, falloff.val),
             |(freq, high, falloff), env| {
                 let period = 1.0 / freq.sample(env);
                 let high = high.sample(env);
@@ -205,36 +218,46 @@ make_builtin_fns!(
         )
     ),
     /// Get the minimum of two or more values
-    (min, span, |a, [rest]| {
-        let mut min = a;
+    (min, |a, [rest]| {
+        let mut min = a.val;
         for b in rest {
-            min = min.bin_scalar_op(b.value, "min", span, f64::min)?;
+            min = min.bin_scalar_op(b.val, "min", b.span, f64::min)?;
         }
         min
     }),
     /// Get the maximum of two or more values
-    (max, span, |a, [rest]| {
-        let mut max = a;
+    (max, |a, [rest]| {
+        let mut max = a.val;
         for b in rest {
-            max = max.bin_scalar_op(b.value, "max", span, f64::max)?;
+            max = max.bin_scalar_op(b.val, "max", b.span, f64::max)?;
         }
         max
     }),
     /// Raise a value to a power
-    (pow, sp, |a, b| a.bin_scalar_op(b, "pow", sp, f64::powf)?),
+    (pow, sp, |a, b| a.val.bin_scalar_op(
+        b.val,
+        "pow",
+        sp,
+        f64::powf
+    )?),
     /// Get the logarithm of a value
-    (log, sp, |a, b| a.bin_scalar_op(b, "log", sp, f64::log)?),
+    (log, sp, |a, b| a.val.bin_scalar_op(
+        b.val,
+        "log",
+        sp,
+        f64::log
+    )?),
     /// Negate a value
-    (neg, span, |x| x.un_scalar_op("neg", span, |x| -x)?),
+    (neg, |x| x.val.un_scalar_op("neg", x.span, |x| -x)?),
     /// Get the absolute value of a value
-    (abs, span, |x| x.un_scalar_op("abs", span, f64::abs)?),
+    (abs, |x| x.val.un_scalar_op("abs", x.span, f64::abs)?),
     /// Get the square root of a value
-    (sqrt, span, |x| x.un_scalar_op("sqrt", span, f64::sqrt)?),
+    (sqrt, |x| x.val.un_scalar_op("sqrt", x.span, f64::sqrt)?),
     /// Get e raised to a value
-    (exp, span, |x| x.un_scalar_op("exp", span, f64::exp)?),
+    (exp, |x| x.val.un_scalar_op("exp", x.span, f64::exp)?),
     /// Pan
     (pan, |pan, value| {
-        state_node("pan", (pan, value), |(pan, value), env| {
+        state_node("pan", (pan.val, value.val), |(pan, value), env| {
             let pan = pan.sample(env).average();
             let value = value.sample(env).average();
             Stereo::pan(value, pan)
@@ -242,31 +265,39 @@ make_builtin_fns!(
     }),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
     (perbeat, |n| {
-        state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq())
+        state_node("perbeat", n.val, move |n, env| {
+            n.sample(env) * env.beat_freq()
+        })
     }),
     /// Get the period that is an `n`th of a beat at the current tempo
     (beat, |n| {
-        state_node("beat", n, move |n, env| {
+        state_node("beat", n.val, move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         })
     }),
     /// Get the period of `n` beats at the current tempo
     (beats, |n| {
-        state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq())
+        state_node("beats", n.val, move |n, env| {
+            n.sample(env) / env.beat_freq()
+        })
     }),
     (sperbeat, |n, values| {
-        let perbeat = state_node("perbeat", n, move |n, env| n.sample(env) * env.beat_freq());
-        section(0.0, perbeat, values)?
+        let perbeat = state_node("perbeat", n.val, move |n, env| {
+            n.sample(env) * env.beat_freq()
+        });
+        section(0.0, perbeat, values.val)?
     }),
     (sbeat, |n, values| {
-        let beat = state_node("beat", n, move |n, env| {
+        let beat = state_node("beat", n.val, move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         });
-        section(0.0, beat, values)?
+        section(0.0, beat, values.val)?
     }),
     (sbeats, |n, values| {
-        let beats = state_node("beats", n, move |n, env| n.sample(env) / env.beat_freq());
-        section(0.0, beats, values)?
+        let beats = state_node("beats", n.val, move |n, env| {
+            n.sample(env) / env.beat_freq()
+        });
+        section(0.0, beats, values.val)?
     }),
     /// Create looping sections from some values
     ///
@@ -277,11 +308,11 @@ make_builtin_fns!(
     /// square 110 * max 0 (saw (sec 0 1 2 8))
     /// ```
     (sec, |offset, period, values| section(
-        offset, period, values,
+        offset.val, period.val, values.val,
     )?),
     (sel, span, |indices, values| {
-        let indices = indices.into_list();
-        let values = values.into_list();
+        let indices = indices.val.into_list();
+        let values = values.val.into_list();
         let mut selected = Vec::with_capacity(indices.len());
         for index in indices {
             let index = index.expect_natural("index", span)?;
@@ -298,41 +329,41 @@ make_builtin_fns!(
     (join, |[values]| {
         let mut joined = Vec::new();
         for value in values {
-            joined.extend(value.value.into_list());
+            joined.extend(value.val.into_list());
         }
         Value::List(joined)
     }),
-    (flip, span, |function, [args]| {
+    (flip, |function, [args]| {
         args.reverse();
-        call(span.sp(function), args)?.value
+        call(function, args)?.val
     }),
-    (atop, span, |f, g, [x]| {
-        let gx = call(span.sp(g), x)?;
-        call(span.sp(f), vec![gx])?.value
+    (atop, |f, g, [x]| {
+        let gx = call(g, x)?;
+        call(f, vec![gx])?.val
     }),
-    (over, span, |f, g, x, [y]| {
-        let gx = call(span.sp(g.clone()), vec![span.sp(x)])?;
-        let gy = call(span.sp(g), y)?;
-        call(span.sp(f), vec![gx, gy])?.value
+    (over, |f, g, x, [y]| {
+        let gx = call(g.clone(), vec![x])?;
+        let gy = call(g, y)?;
+        call(f, vec![gx, gy])?.val
     }),
-    (fork, span, |f, g, h, x, [y]| {
-        let gx = call(span.sp(g), vec![span.sp(x)])?;
-        let hy = call(span.sp(h), y)?;
-        call(span.sp(f), vec![gx, hy])?.value
+    (fork, |f, g, h, x, [y]| {
+        let gx = call(g, vec![x])?;
+        let hy = call(h, y)?;
+        call(f, vec![gx, hy])?.val
     }),
-    (lhook, span, |f, g, x, [y]| {
-        let gx = call(span.sp(g), vec![span.sp(x)])?;
+    (lhook, |f, g, x, [y]| {
+        let gx = call(g, vec![x])?;
         y.insert(0, gx);
-        call(span.sp(f), y)?.value
+        call(f, y)?.val
     }),
-    (rhook, span, |f, g, x, [y]| {
-        let gy = call(span.sp(g), y)?;
-        call(span.sp(f), vec![span.sp(x), gy])?.value
+    (rhook, |f, g, x, [y]| {
+        let gy = call(g, y)?;
+        call(f, vec![x, gy])?.val
     }),
     (map, span, |f, xs| {
         let mut mapped = Vec::new();
-        for x in xs.into_list() {
-            mapped.push(call(span.sp(f.clone()), vec![span.sp(x)])?.value);
+        for x in xs.val.into_list() {
+            mapped.push(call(f.clone(), vec![span.sp(x)])?.val);
         }
         Value::List(mapped)
     }),

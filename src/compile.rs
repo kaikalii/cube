@@ -92,7 +92,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
             bindings: HashMap::new(),
         }],
         last_octave: 3,
-        last_freq: Letter::C.frequency(3),
+        last_val: 0.0.into(),
     };
     while compiler.try_exact(Token::Newline).is_some() {}
     while compiler.item()? {
@@ -100,17 +100,17 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
     }
     let root = compiler
         .try_expr()?
-        .map(|val| val.value.into_node())
+        .map(|val| val.val.into_node())
         .unwrap_or_else(|| NodeBox::new(0.0));
     while compiler.try_exact(Token::Newline).is_some() {}
     let initial_time = compiler
         .find_binding("initial_time")
-        .map(|val| val.value.expect_number("initial_time", val.span))
+        .map(|val| val.val.expect_number("initial_time", val.span))
         .transpose()?
         .unwrap_or(0.0);
     let tempo = compiler
         .find_binding("tempo")
-        .map(|val| val.value.expect_number("tempo", val.span))
+        .map(|val| val.val.expect_number("tempo", val.span))
         .transpose()?
         .unwrap_or(120.0);
     if compiler.curr < compiler.tokens.len() {
@@ -130,7 +130,7 @@ struct Compiler {
     curr: usize,
     scopes: Vec<Scope>,
     last_octave: Octave,
-    last_freq: f64,
+    last_val: Value,
 }
 
 struct Scope {
@@ -143,7 +143,7 @@ impl Compiler {
             .tokens
             .get(self.curr)
             .cloned()
-            .and_then(|sp| f(sp.value).map(|val| sp.span.sp(val)))?;
+            .and_then(|sp| f(sp.val).map(|val| sp.span.sp(val)))?;
         self.curr += 1;
         Some(token)
     }
@@ -177,7 +177,7 @@ impl Compiler {
             .iter()
             .rev()
             .find_map(|scope| scope.bindings.get(name))
-            .map(|val| val.span.sp(&val.value))
+            .map(|val| val.span.sp(&val.val))
     }
     fn item(&mut self) -> CompileResult<bool> {
         self.binding()
@@ -198,7 +198,7 @@ impl Compiler {
             .last_mut()
             .unwrap()
             .bindings
-            .insert(name.value, value);
+            .insert(name.val, value);
         Ok(true)
     }
     fn try_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
@@ -215,13 +215,9 @@ impl Compiler {
         }) {
             let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
-            left = span.sp(match op.value {
-                BinOp::Add => left
-                    .value
-                    .bin_scalar_op(right.value, "+", op.span, Add::add)?,
-                BinOp::Sub => left
-                    .value
-                    .bin_scalar_op(right.value, "-", op.span, Sub::sub)?,
+            left = span.sp(match op.val {
+                BinOp::Add => left.val.bin_scalar_op(right.val, "+", op.span, Add::add)?,
+                BinOp::Sub => left.val.bin_scalar_op(right.val, "-", op.span, Sub::sub)?,
                 _ => unreachable!(),
             });
         }
@@ -239,13 +235,9 @@ impl Compiler {
         }) {
             let right = self.try_cmp_op()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
-            left = span.sp(match op.value {
-                BinOp::Mul => left
-                    .value
-                    .bin_scalar_op(right.value, "*", op.span, Mul::mul)?,
-                BinOp::Div => left
-                    .value
-                    .bin_scalar_op(right.value, "/", op.span, Div::div)?,
+            left = span.sp(match op.val {
+                BinOp::Mul => left.val.bin_scalar_op(right.val, "*", op.span, Mul::mul)?,
+                BinOp::Div => left.val.bin_scalar_op(right.val, "/", op.span, Div::div)?,
                 _ => unreachable!(),
             });
         }
@@ -269,27 +261,19 @@ impl Compiler {
                 a.partial_cmp(&b)
                     .unwrap_or_else(|| a.is_nan().cmp(&b.is_nan()))
             }
-            left = span.sp(match op.value {
-                BinOp::Le => left
-                    .value
-                    .bin_scalar_op(right.value, "<=", op.span, |a, b| {
-                        (cmp(a, b) == Ordering::Less) as u8 as f64
-                    })?,
-                BinOp::Lt => left
-                    .value
-                    .bin_scalar_op(right.value, "<", op.span, |a, b| {
-                        (cmp(a, b) != Ordering::Greater) as u8 as f64
-                    })?,
-                BinOp::Ge => left
-                    .value
-                    .bin_scalar_op(right.value, ">=", op.span, |a, b| {
-                        (cmp(a, b) == Ordering::Greater) as u8 as f64
-                    })?,
-                BinOp::Gt => left
-                    .value
-                    .bin_scalar_op(right.value, ">", op.span, |a, b| {
-                        (cmp(a, b) != Ordering::Less) as u8 as f64
-                    })?,
+            left = span.sp(match op.val {
+                BinOp::Le => left.val.bin_scalar_op(right.val, "<=", op.span, |a, b| {
+                    (cmp(a, b) == Ordering::Less) as u8 as f64
+                })?,
+                BinOp::Lt => left.val.bin_scalar_op(right.val, "<", op.span, |a, b| {
+                    (cmp(a, b) != Ordering::Greater) as u8 as f64
+                })?,
+                BinOp::Ge => left.val.bin_scalar_op(right.val, ">=", op.span, |a, b| {
+                    (cmp(a, b) == Ordering::Greater) as u8 as f64
+                })?,
+                BinOp::Gt => left.val.bin_scalar_op(right.val, ">", op.span, |a, b| {
+                    (cmp(a, b) != Ordering::Less) as u8 as f64
+                })?,
                 _ => unreachable!(),
             });
         }
@@ -320,7 +304,7 @@ impl Compiler {
             let mut end = span;
             let mut items = Vec::new();
             while let Some(item) = self.try_bar_list()? {
-                items.push(item.value);
+                items.push(item.val);
                 end = item.span;
             }
             self.expect(Token::CloseBracket, "`]`")?;
@@ -335,7 +319,7 @@ impl Compiler {
             let mut end = span;
             let mut items = Vec::new();
             while let Some(item) = self.try_term()? {
-                items.push(item.value);
+                items.push(item.val);
                 end = item.span;
             }
             Ok(Some(start.union(end).sp(Value::List(items))))
@@ -344,23 +328,21 @@ impl Compiler {
         }
     }
     fn try_term(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        Ok(Some(if let Some(ident) = self.ident() {
-            if let Some(value) = self.find_binding(&ident.value) {
+        let val = if let Some(ident) = self.ident() {
+            if let Some(value) = self.find_binding(&ident.val) {
                 value.map(Clone::clone)
-            } else if BUILTINS.contains_key(&ident.value) {
+            } else if BUILTINS.contains_key(&ident.val) {
                 ident.map(Value::BuiltinFn)
-            } else if let Some(val) = builtin_constant(&ident.value) {
+            } else if let Some(val) = builtin_constant(&ident.val) {
                 ident.span.sp(val)
-            } else if let Some((letter, oct)) = parse_note(&ident.value) {
+            } else if let Some((letter, oct)) = parse_note(&ident.val) {
                 let freq = letter.frequency(oct);
-                self.last_freq = freq;
                 self.last_octave = oct;
                 ident.span.sp(Value::Number(freq))
-            } else if let Some(letter) = parse_letter(&ident.value) {
+            } else if let Some(letter) = parse_letter(&ident.val) {
                 let freq = letter.frequency(self.last_octave);
-                self.last_freq = freq;
                 ident.span.sp(Value::Number(freq))
-            } else if let Some(value) = parse_hex(&ident.value) {
+            } else if let Some(value) = parse_hex(&ident.val) {
                 ident.span.sp(value)
             } else {
                 return Err(ident.map(CompileError::UnknownIdent));
@@ -374,10 +356,12 @@ impl Compiler {
             self.expect(Token::CloseParen, "`)`")?;
             res
         } else if let Some(span) = self.try_exact(Token::Tilde) {
-            span.sp(Value::Number(self.last_freq))
+            span.sp(self.last_val.clone())
         } else {
             return Ok(None);
-        }))
+        };
+        self.last_val = val.val.clone();
+        Ok(Some(val))
     }
     fn ident(&mut self) -> Option<Sp<String>> {
         self.next_token_map(|token| match token {
@@ -391,30 +375,30 @@ impl Compiler {
             _ => None,
         })
         .map(|num| {
-            num.value
+            num.val
                 .parse()
                 .map(|n| num.span.sp(n))
-                .map_err(|_| num.span.sp(CompileError::InvalidNumber(num.value)))
+                .map_err(|_| num.span.sp(CompileError::InvalidNumber(num.val)))
         })
         .transpose()
     }
 }
 
 pub fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Value>> {
-    let f_name = match f_val.value {
+    let f_name = match f_val.val {
         Value::BuiltinFn(name) => name,
         Value::Bind(f, mut bind_args) => {
             bind_args.append(&mut args);
             return call(*f, bind_args);
         }
         _ => {
-            let mut value = f_val.value;
+            let mut value = f_val.val;
             let mut span = f_val.span;
             if !args.is_empty() {
                 let b = args.remove(0);
                 span = span.union(b.span);
                 let b = call(b, args)?;
-                value = value.bin_scalar_op(b.value, "*", b.span, |a, b| a * b)?;
+                value = value.bin_scalar_op(b.val, "*", b.span, |a, b| a * b)?;
             }
             return Ok(span.sp(value));
         }
