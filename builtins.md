@@ -1,35 +1,75 @@
+# `add`
+<code><b>add</b> a b</code>
+
+Named alias for `+`
+
+# `sub`
+<code><b>sub</b> a b</code>
+
+Named alias for `-`
+
+# `mul`
+<code><b>mul</b> a b</code>
+
+Named alias for `*`
+
+# `div`
+<code><b>div</b> a b</code>
+
+Named alias for `/`
+
+# `lt`
+<code><b>lt</b> a b</code>
+
+Named alias for `<`
+
+# `le`
+<code><b>le</b> a b</code>
+
+Named alias for `<=`
+
+# `gt`
+<code><b>gt</b> a b</code>
+
+Named alias for `>`
+
+# `ge`
+<code><b>ge</b> a b</code>
+
+Named alias for `>=`
+
 # `sin`
-<code><b>sin</b>  ...freqs</code>
+<code><b>sin</b> freqs</code>
 
 Generate a sine wave from a frequency
 
 # `square`
-<code><b>square</b>  ...freqs</code>
+<code><b>square</b> freqs</code>
 
 Generate a square wave from a frequency
 
 # `saw`
-<code><b>saw</b>  ...freqs</code>
+<code><b>saw</b> freqs</code>
 
 Generate a saw wave from a frequency
 
 # `tri`
-<code><b>tri</b>  ...freqs</code>
+<code><b>tri</b> freqs</code>
 
 Generate a triangle wave from a frequency
 
 # `hsquare`
-<code><b>hsquare</b> n ...freqs</code>
+<code><b>hsquare</b> n freqs</code>
 
 Generate an additive square wave from a frequency and number of harmonics
 
 # `hsaw`
-<code><b>hsaw</b> n ...freqs</code>
+<code><b>hsaw</b> n freqs</code>
 
 Generate an additive saw wave from a frequency and number of harmonics
 
 # `htri`
-<code><b>htri</b> n ...freqs</code>
+<code><b>htri</b> n freqs</code>
 
 Generate an additive triangle wave from a frequency and number of harmonics
 
@@ -41,12 +81,12 @@ Generate kick drum sound
 # `min`
 <code><b>min</b> a ...rest</code>
 
-Get the minimum of two or more values or a vector
+Get the minimum of two or more values
 
 # `max`
 <code><b>max</b> a ...rest</code>
 
-Get the maximum of two or more values or a vector
+Get the maximum of two or more values
 
 # `pow`
 <code><b>pow</b> a b</code>
@@ -63,6 +103,11 @@ Get the logarithm of a value
 
 Negate a value
 
+# `pos`
+<code><b>pos</b> x</code>
+
+Map a value from the range [-1, 1] to [0, 1]
+
 # `abs`
 <code><b>abs</b> x</code>
 
@@ -78,33 +123,10 @@ Get the square root of a value
 
 Get e raised to a value
 
-# `x`
-<code><b>x</b> v</code>
+# `pan`
+<code><b>pan</b> pan value</code>
 
-Get the x component of a vector
-
-# `y`
-<code><b>y</b> v</code>
-
-Get the y component of a vector
-
-# `z`
-<code><b>z</b> v</code>
-
-Get the z component of a vector
-
-# `len`
-<code><b>len</b> v</code>
-
-Get the length of a vector
-
-# `vec`
-<code><b>vec</b> x [y = x] [z = x]</code>
-
-Create a new vector
-
-Passing a single value will create a vector with all components equal to that value.
-Passing three values will create a vector with the x, y, and z components equal to those values.
+Pan
 
 # `perbeat`
 <code><b>perbeat</b> n</code>
@@ -121,50 +143,100 @@ Get the period that is an `n`th of a beat at the current tempo
 
 Get the period of `n` beats at the current tempo
 
+# `sperbeat`
+<code><b>sperbeat</b> n values</code>
+
+Alias for `sec (perbeat n) values`
+
+# `sbeat`
+<code><b>sbeat</b> n values</code>
+
+Alias for `sec (beat n) values`
+
+# `sbeats`
+<code><b>sbeats</b> n values</code>
+
+Alias for `sec (beats n) values`
+
 # `sec`
-<code><b>sec</b> offset period first ...rest</code>
+<code><b>sec</b> period values</code>
 
 Create looping sections from some values
 
-With an offset at `offset`, each section will be played for the `period`.
+Each value will be played for the `period`.
 
 ## Example
 ```
-square 110 * max 0 (saw (sec 0 1 2 8))
+square 110 * max 0 (saw (sec (beat 4) |2 8))
 ```
 
-# `args`
-<code><b>args</b>  ...args</code>
+# `sel`
+<code><b>sel</b> indices values</code>
 
-Collect args into an args list that can be bound to a name
+Select from `values` using `indices`
 
-# `gtx`
-<code><b>gtx</b> x</code>
+# `offset`
+<code><b>offset</b> offset value</code>
 
-Check if the current x position is greater than a value
+Evaluate the `value` with the `offset` added to the current time
 
-# `gty`
-<code><b>gty</b> y</code>
+# `lowpass`
+<code><b>lowpass</b> cutoff value</code>
 
-Check if the current y position is greater than a value
+Apply a low-pass filter to a `value` with the given `cutoff` frequency
 
-# `gtz`
-<code><b>gtz</b> z</code>
+# `reverb`
+<code><b>reverb</b> period n value</code>
 
-Check if the current z position is greater than a value
+Apply a basic reverb effect to a `value` with the given `period` and `n` reflections
 
-# `ltx`
-<code><b>ltx</b> x</code>
+# `join`
+<code><b>join</b>  ...values</code>
 
-Check if the current x position is less than a value
+Join all arguments into a single list
 
-# `lty`
-<code><b>lty</b> y</code>
+# `flatten`
+<code><b>flatten</b> values</code>
 
-Check if the current y position is less than a value
+Flatten a list of lists into a single list
 
-# `ltz`
-<code><b>ltz</b> z</code>
+# `flip`
+<code><b>flip</b> function ...args</code>
 
-Check if the current z position is less than a value
+Call a function with the arguments reversed
+
+# `atop`
+<code><b>atop</b> f g x ...xs</code>
+
+Call `f(g(x ...xs))`
+
+# `over`
+<code><b>over</b> f g x y ...ys</code>
+
+Call `f(g(x) g(y ...ys))`
+
+# `fork`
+<code><b>fork</b> f g h x y ...ys</code>
+
+Call `f(g(x) h(y ...ys))`
+
+# `lhook`
+<code><b>lhook</b> f g x y ...ys</code>
+
+Call `f(g(x ...xs) y)`
+
+# `rhook`
+<code><b>rhook</b> f g x y ...ys</code>
+
+Call `f(x g(y ...ys))`
+
+# `map`
+<code><b>map</b> f xs</code>
+
+Apply a functions to each item in a list
+
+# `bind`
+<code><b>bind</b> f ...args</code>
+
+Bind a function to some arguments
 

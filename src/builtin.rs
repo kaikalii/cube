@@ -277,18 +277,21 @@ make_builtin_fns!(
             n.sample(env) / env.beat_freq()
         })
     }),
+    /// Alias for `sec (perbeat n) values`
     (sperbeat, |n, values| {
         let perbeat = state_node("perbeat", n.val, move |n, env| {
             n.sample(env) * env.beat_freq()
         });
         section(perbeat, values.val)?
     }),
+    /// Alias for `sec (beat n) values`
     (sbeat, |n, values| {
         let beat = state_node("beat", n.val, move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         });
         section(beat, values.val)?
     }),
+    /// Alias for `sec (beats n) values`
     (sbeats, |n, values| {
         let beats = state_node("beats", n.val, move |n, env| {
             n.sample(env) / env.beat_freq()
@@ -297,13 +300,14 @@ make_builtin_fns!(
     }),
     /// Create looping sections from some values
     ///
-    /// With an offset at `offset`, each section will be played for the `period`.
+    /// Each value will be played for the `period`.
     ///
     /// ## Example
     /// ```
-    /// square 110 * max 0 (saw (sec 0 1 2 8))
+    /// square 110 * max 0 (saw (sec (beat 4) |2 8))
     /// ```
     (sec, |period, values| section(period.val, values.val)?),
+    /// Select from `values` using `indices`
     (sel, span, |indices, values| {
         let indices = indices.val.into_list();
         let values = values.val.into_list();
@@ -320,6 +324,7 @@ make_builtin_fns!(
         }
         Value::List(selected)
     }),
+    /// Evaluate the `value` with the `offset` added to the current time
     (offset, |offset, value| {
         state_node("offset", (offset.val, value.val), |(offset, value), env| {
             let offset = offset.sample(env).average();
@@ -329,15 +334,18 @@ make_builtin_fns!(
             value
         })
     }),
+    /// Apply a low-pass filter to a `value` with the given `cutoff` frequency
     (lowpass, |cutoff, value| NodeBox::new(LowPass::new(
         cutoff.val.into_node(),
         value.val.into_node(),
     ))),
+    /// Apply a basic reverb effect to a `value` with the given `period` and `n` reflections
     (reverb, |period, n, value| NodeBox::new(Reverb::new(
         period.val.into_node(),
         n.val.into_node(),
         value.val.into_node(),
     ))),
+    /// Join all arguments into a single list
     (join, |[values]| {
         let mut joined = Vec::new();
         for value in values {
@@ -345,6 +353,7 @@ make_builtin_fns!(
         }
         Value::List(joined)
     }),
+    /// Flatten a list of lists into a single list
     (flatten, |values| {
         Value::List(
             values
@@ -355,38 +364,45 @@ make_builtin_fns!(
                 .collect(),
         )
     }),
+    /// Call a function with the arguments reversed
     (flip, |function, [args]| {
         args.reverse();
         call(function, args)?.val
     }),
+    /// Call `f(g(x ...xs))`
     (atop, |f, g, x, [xs]| {
         xs.insert(0, x);
         let gx = call(g, xs)?;
         call(f, vec![gx])?.val
     }),
+    /// Call `f(g(x) g(y ...ys))`
     (over, |f, g, x, y, [ys]| {
         ys.insert(0, y);
         let gx = call(g.clone(), vec![x])?;
         let gy = call(g, ys)?;
         call(f, vec![gx, gy])?.val
     }),
+    /// Call `f(g(x) h(y ...ys))`
     (fork, |f, g, h, x, y, [ys]| {
         ys.insert(0, y);
         let gx = call(g, vec![x])?;
         let hy = call(h, ys)?;
         call(f, vec![gx, hy])?.val
     }),
+    /// Call `f(g(x ...xs) y)`
     (lhook, |f, g, x, y, [ys]| {
         ys.insert(0, y);
         let gx = call(g, vec![x])?;
         ys.insert(0, gx);
         call(f, ys)?.val
     }),
+    /// Call `f(x g(y ...ys))`
     (rhook, |f, g, x, y, [ys]| {
         ys.insert(0, y);
         let gy = call(g, ys)?;
         call(f, vec![x, gy])?.val
     }),
+    /// Apply a functions to each item in a list
     (map, span, |f, xs| {
         let mut mapped = Vec::new();
         for x in xs.val.into_list() {
@@ -394,6 +410,7 @@ make_builtin_fns!(
         }
         Value::List(mapped)
     }),
+    /// Bind a function to some arguments
     (bind, |f, [args]| Value::Bind(f.into(), args)),
 );
 
