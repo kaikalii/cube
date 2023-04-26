@@ -27,11 +27,11 @@ fn main() {
             return;
         }
         match compile::compile(&input) {
-            Ok(cube) => _ = send.send(cube),
+            Ok(compiled) => _ = send.send(compiled),
             Err(e) => println!("{e}"),
         }
     };
-    compile("test.cube".as_ref());
+    compile("test.compiled".as_ref());
 
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, _>| match res {
         Ok(event) => {
@@ -50,14 +50,16 @@ fn main() {
     let mut maintainer;
     let mut time: Option<Shared<f64>> = None;
 
-    for cube in recv {
+    for compiled in recv {
         maintainer = Maintainer::<f64>::new();
-        let time = time.get_or_insert_with(|| cube.initial_time.into());
+        let time = time
+            .get_or_insert_with(|| compiled.initial_time.into())
+            .clone();
         let source = NodeSource {
-            root: cube.root,
-            time: time.clone(),
+            root: compiled.root,
+            time,
             dir: 1.0.into(),
-            tempo: cube.tempo,
+            tempo: compiled.tempo,
         }
         .maintained(&maintainer);
         output.add(source);

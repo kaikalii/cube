@@ -9,7 +9,7 @@ use crate::{
     value::Value,
 };
 
-pub struct Cube {
+pub struct Compiled {
     pub root: NodeBox,
     pub initial_time: f64,
     pub tempo: f64,
@@ -78,7 +78,7 @@ impl fmt::Display for CompileError {
 
 pub type CompileResult<T = ()> = Result<T, Sp<CompileError>>;
 
-pub fn compile(input: &str) -> CompileResult<Cube> {
+pub fn compile(input: &str) -> CompileResult<Compiled> {
     let tokens = lex(input).map_err(|e| e.map(CompileError::InvalidCharacter))?;
     let mut compiler = Compiler {
         tokens,
@@ -118,7 +118,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
             .span
             .sp(CompileError::Expected("end of file")));
     }
-    Ok(Cube {
+    Ok(Compiled {
         root,
         initial_time,
         tempo,

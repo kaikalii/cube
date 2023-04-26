@@ -27,7 +27,7 @@ impl fmt::Debug for Value {
             Value::Node(node) => write!(f, "{node:?}"),
             Value::BuiltinFn(name) => write!(f, "{name}"),
             Value::Bind(func, args) => write!(f, "{func:?}{args:?}"),
-            Value::List(_) => write!(f, "args"),
+            Value::List(_) => write!(f, "list"),
         }
     }
 }
