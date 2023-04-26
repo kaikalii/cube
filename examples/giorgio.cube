@@ -1,6 +1,6 @@
 hh = sbeats 64 xc * 0.3 noise sbeat 16 x1
 snare = sbeats 64 xe * noise sbeat 4 x01
-riff = sel @ |1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0
+riff = sel |1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0
 As = riff |A2 A3 B C4 E
 Es = riff |E2 E3 F# G B
 Fs = riff |F2 F3 G A C4

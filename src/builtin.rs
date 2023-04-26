@@ -37,8 +37,8 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ArgCount {
-    min: usize,
-    max: Option<usize>,
+    pub min: usize,
+    pub max: Option<usize>,
 }
 
 impl ArgCount {
@@ -337,27 +337,32 @@ make_builtin_fns!(
         args.reverse();
         call(function, args)?.val
     }),
-    (atop, |f, g, [x]| {
-        let gx = call(g, x)?;
+    (atop, |f, g, x, [xs]| {
+        xs.insert(0, x);
+        let gx = call(g, xs)?;
         call(f, vec![gx])?.val
     }),
-    (over, |f, g, x, [y]| {
+    (over, |f, g, x, y, [ys]| {
+        ys.insert(0, y);
         let gx = call(g.clone(), vec![x])?;
-        let gy = call(g, y)?;
+        let gy = call(g, ys)?;
         call(f, vec![gx, gy])?.val
     }),
-    (fork, |f, g, h, x, [y]| {
+    (fork, |f, g, h, x, y, [ys]| {
+        ys.insert(0, y);
         let gx = call(g, vec![x])?;
-        let hy = call(h, y)?;
+        let hy = call(h, ys)?;
         call(f, vec![gx, hy])?.val
     }),
-    (lhook, |f, g, x, [y]| {
+    (lhook, |f, g, x, y, [ys]| {
+        ys.insert(0, y);
         let gx = call(g, vec![x])?;
-        y.insert(0, gx);
-        call(f, y)?.val
+        ys.insert(0, gx);
+        call(f, ys)?.val
     }),
-    (rhook, |f, g, x, [y]| {
-        let gy = call(g, y)?;
+    (rhook, |f, g, x, y, [ys]| {
+        ys.insert(0, y);
+        let gy = call(g, ys)?;
         call(f, vec![x, gy])?.val
     }),
     (map, span, |f, xs| {

@@ -283,13 +283,8 @@ impl Compiler {
         let Some(term) = self.try_bracket_list()? else {
             return Ok(None);
         };
-        let bind = self.try_exact(Token::At).is_some();
         let args = self.args()?;
-        if bind {
-            Ok(Some(term.span.sp(Value::Bind(term.into(), args))))
-        } else {
-            call(term, args).map(Some)
-        }
+        call(term, args).map(Some)
     }
     fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
@@ -404,6 +399,12 @@ pub fn call(f_val: Sp<Value>, mut args: Vec<Sp<Value>>) -> CompileResult<Sp<Valu
         }
     };
     let (arg_count, f) = &BUILTINS[&f_name];
+    if args.len() < arg_count.min {
+        return Ok(f_val.span.sp(Value::Bind(
+            f_val.span.sp(Value::BuiltinFn(f_name)).into(),
+            args,
+        )));
+    }
     if !arg_count.matches(args.len()) {
         return Err(f_val.span.sp(CompileError::WrongNumberOfArguments {
             name: f_name,
