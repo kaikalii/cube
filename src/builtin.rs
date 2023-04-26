@@ -367,6 +367,7 @@ make_builtin_fns!(
         }
         Value::List(mapped)
     }),
+    (bind, |f, [args]| Value::Bind(f.into(), args)),
 );
 
 fn section(
