@@ -11,7 +11,7 @@ use crate::{
 
 pub struct Cube {
     pub root: NodeBox,
-    pub initial_pos: f64,
+    pub initial_time: f64,
     pub tempo: f64,
 }
 
@@ -120,7 +120,7 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
     }
     Ok(Cube {
         root,
-        initial_pos: initial_time,
+        initial_time,
         tempo,
     })
 }

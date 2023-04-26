@@ -2,27 +2,67 @@ mod builtin;
 mod compile;
 mod lex;
 mod node;
-mod ui;
 mod value;
 
-use std::ops::{Add, Rem};
+use std::{
+    fs,
+    ops::{Add, Rem},
+    path::Path,
+    sync::mpsc::channel,
+};
 
-use ui::App;
+use hodaun::{Maintainer, Mix, OutputDeviceMixer, Shared, Source, Stereo};
+use node::NodeSource;
+use notify::{Event, EventKind, RecursiveMode, Watcher};
 
 fn main() {
-    let mut app = App::default();
-    app.load("test.cube");
-    eframe::run_native(
-        "Cube",
-        eframe::NativeOptions {
-            ..Default::default()
-        },
-        Box::new(|cc| {
-            cc.egui_ctx.set_pixels_per_point(3.0);
-            Box::new(app)
-        }),
-    )
+    let mut output =
+        OutputDeviceMixer::<Stereo>::with_default_device().unwrap_or_else(|e| panic!("{e}"));
+
+    let (send, recv) = channel();
+
+    let compile = move |path: &Path| {
+        let input = fs::read_to_string(path).unwrap();
+        if input.trim().is_empty() {
+            return;
+        }
+        match compile::compile(&input) {
+            Ok(cube) => _ = send.send(cube),
+            Err(e) => println!("{e}"),
+        }
+    };
+    compile("test.cube".as_ref());
+
+    let mut watcher = notify::recommended_watcher(move |res: Result<Event, _>| match res {
+        Ok(event) => {
+            if let EventKind::Modify(_) = event.kind {
+                compile(&event.paths[0])
+            }
+        }
+        Err(e) => println!("watch error: {e}"),
+    })
     .unwrap();
+
+    watcher
+        .watch(".".as_ref(), RecursiveMode::Recursive)
+        .unwrap();
+
+    let mut maintainer;
+    let mut time: Option<Shared<f64>> = None;
+
+    for cube in recv {
+        maintainer = Maintainer::<f64>::new();
+        let time = time.get_or_insert_with(|| cube.initial_time.into());
+        let source = NodeSource {
+            root: cube.root,
+            time: time.clone(),
+            dir: 1.0.into(),
+            tempo: cube.tempo,
+        }
+        .maintained(&maintainer);
+        output.add(source);
+        output.play().unwrap();
+    }
 }
 
 pub fn modulus<T, M>(a: T, m: M) -> <<<T as Rem<M>>::Output as Add<M>>::Output as Rem<M>>::Output

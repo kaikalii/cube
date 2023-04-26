@@ -303,7 +303,7 @@ pub fn noise_node() -> GenericNode<impl NodeFn> {
 
 pub struct NodeSource {
     pub root: NodeBox,
-    pub time: f64,
+    pub time: Shared<f64>,
     pub dir: Shared<f64>,
     pub tempo: f64,
 }
@@ -314,12 +314,12 @@ impl Source for NodeSource {
         let dir = self.dir.get();
         let mut env = Env {
             sample_rate,
-            time: self.time,
+            time: self.time.get(),
             dir,
             tempo: &mut self.tempo,
         };
         let sample = self.root.sample(&mut env);
-        self.time += dir * (1.0 / sample_rate);
+        self.time.with(|time| *time += dir * (1.0 / sample_rate));
         Some(sample)
     }
 }
