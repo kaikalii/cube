@@ -373,9 +373,6 @@ impl Compiler {
                 .ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
             res
-        } else if self.try_exact(Token::Dollar).is_some() {
-            self.try_expr()?
-                .ok_or_else(|| self.expected("expression"))?
         } else if let Some(span) = self.try_exact(Token::Tilde) {
             span.sp(Value::Number(self.last_freq))
         } else {
