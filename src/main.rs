@@ -22,7 +22,7 @@ fn main() {
     let (send, recv) = channel();
 
     let compile = move |path: &Path| {
-        let input = fs::read_to_string(path).unwrap();
+        let input = fs::read_to_string(path).unwrap_or_default();
         if input.trim().is_empty() {
             return;
         }

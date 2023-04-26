@@ -1,0 +1,1 @@
+- Add continuous automation

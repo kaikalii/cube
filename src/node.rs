@@ -100,8 +100,11 @@ impl Node for Wave3 {
         NodeBox::new(self.clone())
     }
     fn sample(&mut self, env: &mut Env) -> Stereo {
-        let mut sample = Stereo::ZERO;
         let freq = self.freq.sample(env).average();
+        if self.time == 0.0 && freq != 0.0 {
+            self.time = env.time * freq;
+        }
+        let mut sample = Stereo::ZERO;
         sample += (self.one_hz)(self.time);
         self.time += env.dir * (freq / env.sample_rate);
         sample
