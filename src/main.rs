@@ -31,7 +31,7 @@ fn main() {
             Err(e) => println!("{e}"),
         }
     };
-    compile("test.compiled".as_ref());
+    compile("test.cube".as_ref());
 
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, _>| match res {
         Ok(event) => {

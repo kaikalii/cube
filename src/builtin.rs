@@ -62,7 +62,6 @@ macro_rules! make_builtin_fns {
         |
             $($(#[default($default:expr)])? $arg:ident),*
             $($(,)?[$varargs:ident])?
-            $(,($arg2:ident))*
             $(,)?
         | $body:expr)),*
     $(,)*) => {
