@@ -36,7 +36,12 @@ fn main() {
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, _>| match res {
         Ok(event) => {
             if let EventKind::Modify(_) = event.kind {
-                compile(&event.paths[0])
+                if event.paths[0]
+                    .extension()
+                    .map_or(false, |ext| ext == "cube")
+                {
+                    compile(&event.paths[0])
+                }
             }
         }
         Err(e) => println!("watch error: {e}"),

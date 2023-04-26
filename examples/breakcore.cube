@@ -3,7 +3,7 @@ pulse = kick (perbeat 4) * seq 4 |x1008 xff00
 hit = noise * max 0 . saw . perbeat 4 * seq 4 |x8421 x84f1
 hh = pan (sin 100) (0.3 noise * max 0 . saw . perbeat 8 * seq 8 |xd5555755 x000055ff)
 bass = time > beats 32
-notes = 0.2 htri 10 [|(bass C2) C3 Eb4 G |(bass Eb2) Eb3 G4 Bb |(bass G2) G3 D4 B |(bass D2) D3 F4 Ab]
+notes = 0.2 htri 5 [|(bass C2) C3 Eb4 G |(bass Eb2) Eb3 G4 Bb |(bass G2) G3 D4 B |(bass D2) D3 F4 Ab]
 offset_notes = rhook pan (bind flip offset (sbeats 4 notes))
 melody = offset_notes (sin 0.1) 0 + offset_notes (neg.sin 0.1) -0.007
 melody + (pulse + hit + hh) * sbeats 16 xef
