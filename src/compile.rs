@@ -1,9 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-    fmt,
-    ops::{Add, Div, Mul, Sub},
-};
+use std::{collections::HashMap, fmt};
 
 use hodaun::{Letter, Octave};
 
@@ -209,15 +204,14 @@ impl Compiler {
             return Ok(None);
         };
         while let Some(op) = self.next_token_map(|token| match token {
-            Token::BinOp(BinOp::Add) => Some(BinOp::Add),
-            Token::BinOp(BinOp::Sub) => Some(BinOp::Sub),
+            Token::BinOp(op @ (BinOp::Add | BinOp::Sub)) => Some(op),
             _ => None,
         }) {
             let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
-                BinOp::Add => left.val.bin_scalar_op(right.val, "+", op.span, Add::add)?,
-                BinOp::Sub => left.val.bin_scalar_op(right.val, "-", op.span, Sub::sub)?,
+                BinOp::Add => left.val.add(right.val, op.span)?,
+                BinOp::Sub => left.val.sub(right.val, op.span)?,
                 _ => unreachable!(),
             });
         }
@@ -229,15 +223,14 @@ impl Compiler {
         };
 
         while let Some(op) = self.next_token_map(|token| match token {
-            Token::BinOp(BinOp::Mul) => Some(BinOp::Mul),
-            Token::BinOp(BinOp::Div) => Some(BinOp::Div),
+            Token::BinOp(op @ (BinOp::Mul | BinOp::Div)) => Some(op),
             _ => None,
         }) {
             let right = self.try_cmp_op()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
-                BinOp::Mul => left.val.bin_scalar_op(right.val, "*", op.span, Mul::mul)?,
-                BinOp::Div => left.val.bin_scalar_op(right.val, "/", op.span, Div::div)?,
+                BinOp::Mul => left.val.mul(right.val, op.span)?,
+                BinOp::Div => left.val.div(right.val, op.span)?,
                 _ => unreachable!(),
             });
         }
@@ -249,31 +242,16 @@ impl Compiler {
         };
 
         while let Some(op) = self.next_token_map(|token| match token {
-            Token::BinOp(BinOp::Le) => Some(BinOp::Le),
-            Token::BinOp(BinOp::Lt) => Some(BinOp::Lt),
-            Token::BinOp(BinOp::Ge) => Some(BinOp::Ge),
-            Token::BinOp(BinOp::Gt) => Some(BinOp::Gt),
+            Token::BinOp(op @ (BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)) => Some(op),
             _ => None,
         }) {
             let right = self.try_call()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
-            fn cmp(a: f64, b: f64) -> Ordering {
-                a.partial_cmp(&b)
-                    .unwrap_or_else(|| a.is_nan().cmp(&b.is_nan()))
-            }
             left = span.sp(match op.val {
-                BinOp::Le => left.val.bin_scalar_op(right.val, "<=", op.span, |a, b| {
-                    (cmp(a, b) == Ordering::Less) as u8 as f64
-                })?,
-                BinOp::Lt => left.val.bin_scalar_op(right.val, "<", op.span, |a, b| {
-                    (cmp(a, b) != Ordering::Greater) as u8 as f64
-                })?,
-                BinOp::Ge => left.val.bin_scalar_op(right.val, ">=", op.span, |a, b| {
-                    (cmp(a, b) == Ordering::Greater) as u8 as f64
-                })?,
-                BinOp::Gt => left.val.bin_scalar_op(right.val, ">", op.span, |a, b| {
-                    (cmp(a, b) != Ordering::Less) as u8 as f64
-                })?,
+                BinOp::Lt => left.val.lt(right.val, op.span)?,
+                BinOp::Le => left.val.le(right.val, op.span)?,
+                BinOp::Gt => left.val.gt(right.val, op.span)?,
+                BinOp::Ge => left.val.ge(right.val, op.span)?,
                 _ => unreachable!(),
             });
         }

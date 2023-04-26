@@ -1,6 +1,6 @@
 #![allow(clippy::redundant_closure)]
 
-use std::fmt;
+use std::{cmp::Ordering, fmt, ops::*};
 
 use hodaun::Stereo;
 
@@ -185,6 +185,43 @@ impl Value {
             }
         })
     }
+    pub fn add(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "+", span, Add::add)
+    }
+    pub fn sub(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "-", span, Sub::sub)
+    }
+    pub fn mul(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "*", span, Mul::mul)
+    }
+    pub fn div(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "/", span, Div::div)
+    }
+    pub fn lt(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "<", span, |a, b| {
+            (cmp(a, b) == Ordering::Less) as u8 as f64
+        })
+    }
+    pub fn le(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, "<=", span, |a, b| {
+            (cmp(a, b) != Ordering::Greater) as u8 as f64
+        })
+    }
+    pub fn gt(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, ">", span, |a, b| {
+            (cmp(a, b) == Ordering::Greater) as u8 as f64
+        })
+    }
+    pub fn ge(self, other: Self, span: Span) -> CompileResult<Self> {
+        self.bin_scalar_op(other, ">=", span, |a, b| {
+            (cmp(a, b) != Ordering::Less) as u8 as f64
+        })
+    }
+}
+
+fn cmp(a: f64, b: f64) -> Ordering {
+    a.partial_cmp(&b)
+        .unwrap_or_else(|| a.is_nan().cmp(&b.is_nan()))
 }
 
 impl From<i64> for Value {

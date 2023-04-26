@@ -138,26 +138,22 @@ macro_rules! make_builtin_fns {
 }
 
 make_builtin_fns!(
-    (add, |a, b| state_node(
-        "add",
-        (a.val, b.val),
-        |(a, b), env| { a.sample(env) + b.sample(env) }
-    )),
-    (sub, |a, b| state_node(
-        "sub",
-        (a.val, b.val),
-        |(a, b), env| { a.sample(env) - b.sample(env) }
-    )),
-    (mul, |a, b| state_node(
-        "mul",
-        (a.val, b.val),
-        |(a, b), env| { a.sample(env) * b.sample(env) }
-    )),
-    (div, |a, b| state_node(
-        "div",
-        (a.val, b.val),
-        |(a, b), env| { a.sample(env) / b.sample(env) }
-    )),
+    /// Named alias for `+`
+    (add, span, |a, b| a.val.add(b.val, span)?),
+    /// Named alias for `-`
+    (sub, span, |a, b| a.val.sub(b.val, span)?),
+    /// Named alias for `*`
+    (mul, span, |a, b| a.val.mul(b.val, span)?),
+    /// Named alias for `/`
+    (div, span, |a, b| a.val.div(b.val, span)?),
+    /// Named alias for `<`
+    (lt, span, |a, b| a.val.lt(b.val, span)?),
+    /// Named alias for `<=`
+    (le, span, |a, b| a.val.le(b.val, span)?),
+    /// Named alias for `>`
+    (gt, span, |a, b| a.val.gt(b.val, span)?),
+    /// Named alias for `>=`
+    (ge, span, |a, b| a.val.ge(b.val, span)?),
     /// Generate a sine wave from a frequency
     (sin, |freqs| freqs.val.distribute(|freq| Wave3::new(
         "sine",
