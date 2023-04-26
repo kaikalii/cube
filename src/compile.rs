@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use hodaun::{Letter, Octave};
+use hodaun::{Letter, Octave, Stereo};
 
 use crate::{
     builtin::{builtin_constant, BUILTINS},
@@ -88,16 +88,12 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         }],
         last_octave: 3,
         last_val: 0.0.into(),
+        outputs: Vec::new(),
     };
-    while compiler.try_exact(Token::Newline).is_some() {}
+    while compiler.exact(Token::Newline).is_some() {}
     while compiler.item()? {
-        while compiler.try_exact(Token::Newline).is_some() {}
+        while compiler.exact(Token::Newline).is_some() {}
     }
-    let root = compiler
-        .try_expr()?
-        .map(|val| val.val.into_node())
-        .unwrap_or_else(|| NodeBox::new(0.0));
-    while compiler.try_exact(Token::Newline).is_some() {}
     let initial_time = compiler
         .find_binding("initial_time")
         .map(|val| val.val.expect_number("initial_time", val.span))
@@ -108,6 +104,15 @@ pub fn compile(input: &str) -> CompileResult<Cube> {
         .map(|val| val.val.expect_number("tempo", val.span))
         .transpose()?
         .unwrap_or(120.0);
+    let root = NodeBox::new(state_node(
+        format!("{:?}", compiler.outputs),
+        compiler.outputs,
+        |outputs, env| {
+            outputs
+                .iter_mut()
+                .fold(Stereo::ZERO, |acc, node| acc + node.sample(env))
+        },
+    ));
     if compiler.curr < compiler.tokens.len() {
         return Err(compiler.tokens[compiler.curr]
             .span
@@ -126,6 +131,7 @@ struct Compiler {
     scopes: Vec<Scope>,
     last_octave: Octave,
     last_val: Value,
+    outputs: Vec<NodeBox>,
 }
 
 struct Scope {
@@ -142,7 +148,7 @@ impl Compiler {
         self.curr += 1;
         Some(token)
     }
-    fn try_exact(&mut self, token: impl Into<Token>) -> Option<Span> {
+    fn exact(&mut self, token: impl Into<Token>) -> Option<Span> {
         self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
             .map(|sp| sp.span)
     }
@@ -158,7 +164,7 @@ impl Compiler {
         }
     }
     fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> CompileResult {
-        if self.try_exact(token.into()).is_some() {
+        if self.exact(token.into()).is_some() {
             Ok(())
         } else {
             Err(self.expected(expectation))
@@ -175,7 +181,14 @@ impl Compiler {
             .map(|val| val.span.sp(&val.val))
     }
     fn item(&mut self) -> CompileResult<bool> {
-        self.binding()
+        Ok(if self.binding()? {
+            true
+        } else if let Some(value) = self.expr()? {
+            self.outputs.push(value.val.into_node());
+            true
+        } else {
+            false
+        })
     }
     fn binding(&mut self) -> CompileResult<bool> {
         let start = self.curr;
@@ -186,9 +199,7 @@ impl Compiler {
             self.curr = start;
             return Ok(false);
         }
-        let value = self
-            .try_expr()?
-            .ok_or_else(|| self.expected("expression"))?;
+        let value = self.expr()?.ok_or_else(|| self.expected("expression"))?;
         self.scopes
             .last_mut()
             .unwrap()
@@ -196,18 +207,18 @@ impl Compiler {
             .insert(name.val, value);
         Ok(true)
     }
-    fn try_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        self.try_as_expr()
+    fn expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        self.as_expr()
     }
-    fn try_as_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_md_expr()? else {
+    fn as_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        let Some(mut left) = self.md_expr()? else {
             return Ok(None);
         };
         while let Some(op) = self.next_token_map(|token| match token {
             Token::BinOp(op @ (BinOp::Add | BinOp::Sub)) => Some(op),
             _ => None,
         }) {
-            let right = self.try_md_expr()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.md_expr()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Add => left.val.add(right.val, op.span)?,
@@ -217,8 +228,8 @@ impl Compiler {
         }
         Ok(Some(left))
     }
-    fn try_md_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_cmp_op()? else {
+    fn md_expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        let Some(mut left) = self.cmp_op()? else {
             return Ok(None);
         };
 
@@ -226,7 +237,7 @@ impl Compiler {
             Token::BinOp(op @ (BinOp::Mul | BinOp::Div)) => Some(op),
             _ => None,
         }) {
-            let right = self.try_cmp_op()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.cmp_op()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Mul => left.val.mul(right.val, op.span)?,
@@ -236,8 +247,8 @@ impl Compiler {
         }
         Ok(Some(left))
     }
-    fn try_cmp_op(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(mut left) = self.try_call()? else {
+    fn cmp_op(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        let Some(mut left) = self.call()? else {
             return Ok(None);
         };
 
@@ -245,7 +256,7 @@ impl Compiler {
             Token::BinOp(op @ (BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)) => Some(op),
             _ => None,
         }) {
-            let right = self.try_call()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.call()?.ok_or_else(|| self.expected("term"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Lt => left.val.lt(right.val, op.span)?,
@@ -257,8 +268,8 @@ impl Compiler {
         }
         Ok(Some(left))
     }
-    fn try_call(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(term) = self.try_bracket_list()? else {
+    fn call(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        let Some(term) = self.bracket_list()? else {
             return Ok(None);
         };
         let args = self.args()?;
@@ -266,41 +277,41 @@ impl Compiler {
     }
     fn args(&mut self) -> CompileResult<Vec<Sp<Value>>> {
         let mut args = Vec::new();
-        while let Some(arg) = self.try_bracket_list()? {
+        while let Some(arg) = self.bracket_list()? {
             args.push(arg);
         }
         Ok(args)
     }
-    fn try_bracket_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        if let Some(span) = self.try_exact(Token::OpenBracket) {
+    fn bracket_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        if let Some(span) = self.exact(Token::OpenBracket) {
             let start = span;
             let mut end = span;
             let mut items = Vec::new();
-            while let Some(item) = self.try_bar_list()? {
+            while let Some(item) = self.bar_list()? {
                 items.push(item.val);
                 end = item.span;
             }
             self.expect(Token::CloseBracket, "`]`")?;
             Ok(Some(start.union(end).sp(Value::List(items))))
         } else {
-            self.try_bar_list()
+            self.bar_list()
         }
     }
-    fn try_bar_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        if let Some(span) = self.try_exact(Token::Bar) {
+    fn bar_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
+        if let Some(span) = self.exact(Token::Bar) {
             let start = span;
             let mut end = span;
             let mut items = Vec::new();
-            while let Some(item) = self.try_term()? {
+            while let Some(item) = self.term()? {
                 items.push(item.val);
                 end = item.span;
             }
             Ok(Some(start.union(end).sp(Value::List(items))))
         } else {
-            self.try_term()
+            self.term()
         }
     }
-    fn try_term(&mut self) -> CompileResult<Option<Sp<Value>>> {
+    fn term(&mut self) -> CompileResult<Option<Sp<Value>>> {
         let val = if let Some(ident) = self.ident() {
             if let Some(value) = self.find_binding(&ident.val) {
                 value.map(Clone::clone)
@@ -322,13 +333,11 @@ impl Compiler {
             }
         } else if let Some(num) = self.number()? {
             num.map(Value::Number)
-        } else if self.try_exact(Token::OpenParen).is_some() {
-            let res = self
-                .try_expr()?
-                .ok_or_else(|| self.expected("expression"))?;
+        } else if self.exact(Token::OpenParen).is_some() {
+            let res = self.expr()?.ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
             res
-        } else if let Some(span) = self.try_exact(Token::Tilde) {
+        } else if let Some(span) = self.exact(Token::Tilde) {
             span.sp(self.last_val.clone())
         } else {
             return Ok(None);

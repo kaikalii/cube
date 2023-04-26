@@ -332,6 +332,16 @@ make_builtin_fns!(
         }
         Value::List(joined)
     }),
+    (flatten, |values| {
+        Value::List(
+            values
+                .val
+                .into_list()
+                .into_iter()
+                .flat_map(Value::into_list)
+                .collect(),
+        )
+    }),
     (flip, |function, [args]| {
         args.reverse();
         call(function, args)?.val

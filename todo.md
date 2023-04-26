@@ -1,3 +1,2 @@
 - Add low pass filter
 - Add reverb
-- Multiple outputs
