@@ -107,6 +107,41 @@ impl Node for Wave3 {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct LowPass {
+    pub cutoff: NodeBox,
+    pub source: NodeBox,
+    pub acc: Option<Stereo>,
+}
+
+impl LowPass {
+    pub fn new(cutoff: NodeBox, source: NodeBox) -> Self {
+        Self {
+            cutoff,
+            source,
+            acc: None,
+        }
+    }
+}
+
+impl Node for LowPass {
+    fn boxed(&self) -> NodeBox {
+        NodeBox::new(self.clone())
+    }
+    fn sample(&mut self, env: &mut Env) -> Stereo {
+        let cutoff = self.cutoff.sample(env).average();
+        let sample = self.source.sample(env);
+        if let Some(acc) = &mut self.acc {
+            let t = (cutoff / env.sample_rate).min(1.0);
+            *acc = acc.with(sample, |a, b| (b - a) * t + a);
+            *acc
+        } else {
+            self.acc = Some(sample);
+            sample
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct GenericNode<F, S = ()> {
     pub name: String,

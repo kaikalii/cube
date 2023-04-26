@@ -236,6 +236,12 @@ impl From<f64> for Value {
     }
 }
 
+impl From<NodeBox> for Value {
+    fn from(node: NodeBox) -> Self {
+        Value::Node(node)
+    }
+}
+
 impl From<Wave3> for Value {
     fn from(wave: Wave3) -> Self {
         Value::Node(NodeBox::new(wave))

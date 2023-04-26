@@ -241,6 +241,10 @@ make_builtin_fns!(
     )?),
     /// Negate a value
     (neg, |x| x.val.un_scalar_op("neg", x.span, |x| -x)?),
+    /// Map a value from the range [-1, 1] to [0, 1]
+    (pos, |x| x
+        .val
+        .un_scalar_op("pos", x.span, |x| x * 0.5 + 0.5)?),
     /// Get the absolute value of a value
     (abs, |x| x.val.un_scalar_op("abs", x.span, f64::abs)?),
     /// Get the square root of a value
@@ -325,6 +329,10 @@ make_builtin_fns!(
             value
         })
     }),
+    (lowpass, |cutoff, value| NodeBox::new(LowPass::new(
+        cutoff.val.into_node(),
+        value.val.into_node(),
+    ))),
     (join, |[values]| {
         let mut joined = Vec::new();
         for value in values {
