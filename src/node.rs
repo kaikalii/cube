@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     f64::consts::{PI, TAU},
     fmt,
     sync::Arc,
@@ -139,6 +140,54 @@ impl Node for LowPass {
             self.acc = Some(sample);
             sample
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Reverb {
+    pub period: NodeBox,
+    pub n: NodeBox,
+    pub source: NodeBox,
+    pub reflections: Vec<VecDeque<Stereo>>,
+}
+
+impl Reverb {
+    pub fn new(period: NodeBox, n: NodeBox, source: NodeBox) -> Self {
+        Self {
+            period,
+            n,
+            source,
+            reflections: vec![],
+        }
+    }
+}
+
+impl Node for Reverb {
+    fn boxed(&self) -> NodeBox {
+        NodeBox::new(self.clone())
+    }
+    fn sample(&mut self, env: &mut Env) -> Stereo {
+        let period = self.period.sample(env).average().abs();
+        let n = self.n.sample(env).average().max(0.0).round() as usize;
+        if self.reflections.len() < n {
+            self.reflections.push(VecDeque::new());
+        }
+        if self.reflections.len() > n {
+            self.reflections.pop();
+        }
+        let mut sample = self.source.sample(env);
+        let len = (period * env.sample_rate).round() as usize;
+        let mut prev = sample;
+        for (i, refl) in self.reflections.iter_mut().enumerate() {
+            refl.push_back(prev);
+            let mut front = Stereo::ZERO;
+            while refl.len() > len {
+                front = refl.pop_front().unwrap();
+            }
+            sample += front / 2u64.saturating_pow(i as u32 + 1) as f64;
+            prev = refl.get(len / 10).copied().unwrap_or_default();
+        }
+        sample
     }
 }
 

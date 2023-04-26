@@ -333,6 +333,11 @@ make_builtin_fns!(
         cutoff.val.into_node(),
         value.val.into_node(),
     ))),
+    (reverb, |period, n, value| NodeBox::new(Reverb::new(
+        period.val.into_node(),
+        n.val.into_node(),
+        value.val.into_node(),
+    ))),
     (join, |[values]| {
         let mut joined = Vec::new();
         for value in values {

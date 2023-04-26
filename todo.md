@@ -1,2 +1,0 @@
-- Add low pass filter
-- Add reverb
