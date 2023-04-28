@@ -4,7 +4,7 @@ use std::{
     fmt,
 };
 
-use hodaun::{lerp, Shared, Source, Stereo};
+use hodaun::{lerp, Shared, Source, Stereo, Waveform};
 use rand::prelude::*;
 
 use crate::modulus;
@@ -311,11 +311,7 @@ where
 }
 
 pub fn square_wave(time: f64) -> f64 {
-    if modulus(time, 1.0) < 0.5 {
-        1.0
-    } else {
-        -1.0
-    }
+    (if modulus(time, 1.0) < 0.5 { 1.0 } else { -1.0 }) / hodaun::Square::LOUDNESS
 }
 
 pub fn harmonic_square_wave(time: f64, mut harmonics: f64) -> f64 {
@@ -330,11 +326,11 @@ pub fn harmonic_square_wave(time: f64, mut harmonics: f64) -> f64 {
 }
 
 pub fn saw_wave(time: f64) -> f64 {
-    1.0 - modulus(time, 1.0) * 2.0
+    (1.0 - modulus(time, 1.0) * 2.0) / hodaun::Saw::LOUDNESS
 }
 
 pub fn curve_wave(time: f64, falloff: f64) -> f64 {
-    1.0 - modulus(time, 1.0).powf(1.0 / falloff) * 2.0
+    (1.0 - modulus(time, 1.0).powf(1.0 / falloff) * 2.0) / hodaun::Saw::LOUDNESS
 }
 
 pub fn harmonic_saw_wave(time: f64, mut harmonics: f64) -> f64 {
@@ -349,7 +345,7 @@ pub fn harmonic_saw_wave(time: f64, mut harmonics: f64) -> f64 {
 }
 
 pub fn triangle_wave(time: f64) -> f64 {
-    4.0 * (time - (time + 0.5).floor()).abs() - 1.0
+    (4.0 * (time - (time + 0.5).floor()).abs() - 1.0) / hodaun::Triangle::LOUDNESS
 }
 
 pub fn harmonic_triangle_wave(time: f64, mut harmonics: f64) -> f64 {

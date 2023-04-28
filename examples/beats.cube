@@ -1,0 +1,9 @@
+tempo = 128
+kick.beat 1
+noise . max 0 . saw (perbeat 4) * sbeat 4 xbeef_babe
+noise sbeat 4 x01
+0.5 hsaw 50 . sbeats 32 [
+    (sbeat (sbeats 4 |1 2 1 4) |C4 B3 G E)
+    (sbeat (sbeats 4 |4 1 2 1) |E3 G B C4)
+]
+0.5 hsquare 50 .sbeats 4 |C2 D E G
