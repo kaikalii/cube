@@ -83,9 +83,7 @@ pub fn compile(input: &str) -> CompileResult<Compiled> {
     let mut compiler = Compiler {
         tokens,
         curr: 0,
-        scopes: vec![Scope {
-            bindings: HashMap::new(),
-        }],
+        bindings: HashMap::new(),
         last_octave: 3,
         last_val: 0.0.into(),
         outputs: Vec::new(),
@@ -129,15 +127,11 @@ pub fn compile(input: &str) -> CompileResult<Compiled> {
 struct Compiler {
     tokens: Vec<Sp<Token>>,
     curr: usize,
-    scopes: Vec<Scope>,
+    bindings: HashMap<String, Sp<Value>>,
     last_octave: Octave,
     last_val: Value,
     outputs: Vec<NodeBox>,
     depth: usize,
-}
-
-struct Scope {
-    bindings: HashMap<String, Sp<Value>>,
 }
 
 impl Compiler {
@@ -178,11 +172,7 @@ impl Compiler {
         self.last_span().sp(CompileError::Expected(expectation))
     }
     fn find_binding(&self, name: &str) -> Option<Sp<&Value>> {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|scope| scope.bindings.get(name))
-            .map(|val| val.span.sp(&val.val))
+        self.bindings.get(name).map(|val| val.span.sp(&val.val))
     }
     fn item(&mut self) -> CompileResult<bool> {
         Ok(if self.binding()? {
@@ -204,11 +194,7 @@ impl Compiler {
             return Ok(false);
         }
         let value = self.expr()?.ok_or_else(|| self.expected("expression"))?;
-        self.scopes
-            .last_mut()
-            .unwrap()
-            .bindings
-            .insert(name.val, value);
+        self.bindings.insert(name.val, value);
         Ok(true)
     }
     fn expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
