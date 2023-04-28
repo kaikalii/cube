@@ -38,8 +38,8 @@ Named alias for `>`
 
 Named alias for `>=`
 
-# `sin`
-<code><b>sin</b> freqs</code>
+# `sine`
+<code><b>sine</b> freqs</code>
 
 Generate a sine wave from a frequency
 
@@ -57,6 +57,13 @@ Generate a saw wave from a frequency
 <code><b>tri</b> freqs</code>
 
 Generate a triangle wave from a frequency
+
+# `curve`
+<code><b>curve</b> falloff freqs</code>
+
+A curved saw wave
+
+`curve 1` is equivalent to `saw`
 
 # `hsquare`
 <code><b>hsquare</b> n freqs</code>

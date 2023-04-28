@@ -205,7 +205,7 @@ make_builtin_fns!(
             (
                 freq.val.into_node(),
                 high.val.into_node(),
-                falloff.val.into_node()
+                falloff.val.into_node(),
             ),
             |(freq, high, falloff), env| {
                 let period = 1.0 / freq.sample(env);

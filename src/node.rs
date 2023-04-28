@@ -12,7 +12,6 @@ use crate::modulus;
 pub struct Env<'a> {
     pub sample_rate: f64,
     pub time: f64,
-    pub dir: f64,
     pub tempo: &'a mut f64,
 }
 
@@ -93,7 +92,7 @@ where
         }
         let mut sample = Stereo::ZERO;
         sample += one_hz(*time);
-        *time += env.dir * (freq / env.sample_rate);
+        *time += freq / env.sample_rate;
         sample
     })
 }
@@ -120,7 +119,7 @@ where
             let harmonics = harmonics.sample(env).average().abs();
             let mut sample = Stereo::ZERO;
             sample += one_hz(*time, harmonics);
-            *time += env.dir * (freq / env.sample_rate);
+            *time += freq / env.sample_rate;
             sample
         },
     )
@@ -252,7 +251,7 @@ impl Node for Reverb {
                 front = refl.pop_front().unwrap();
             }
             sample += front / 2u64.saturating_pow(i as u32 + 1) as f64;
-            prev = refl.get(len / 10).copied().unwrap_or_default();
+            prev = refl.get(len).copied().unwrap_or_default();
         }
         sample
     }
@@ -389,7 +388,6 @@ impl Source for NodeSource {
         let mut env = Env {
             sample_rate,
             time: self.time.get(),
-            dir,
             tempo: &mut self.tempo,
         };
         let sample = self.root.sample(&mut env);
