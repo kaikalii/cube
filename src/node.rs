@@ -365,7 +365,7 @@ pub fn harmonic_triangle_wave(time: f64, mut harmonics: f64) -> f64 {
 }
 
 pub fn kick_wave(time: f64, period: f64, freq: f64, falloff: f64) -> f64 {
-    ((time % period).powf(falloff) * freq * TAU).sin()
+    (modulus(time, period).powf(falloff) * freq * TAU).sin()
 }
 
 pub fn noise_node() -> GenericNode<impl NodeFn> {

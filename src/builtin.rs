@@ -174,29 +174,21 @@ make_builtin_fns!(
     /// A curved saw wave
     ///
     /// `curve 1` is equivalent to `saw`
-    (curve, |falloff, freqs| {
-        freqs
-            .val
-            .distribute(|freq| harmonic_wave_node("curve", falloff.val.clone(), freq, curve_wave))
-    }),
+    (curve, |falloff, freqs| freqs.val.distribute(|freq| {
+        harmonic_wave_node("curve", falloff.val.clone(), freq, curve_wave)
+    })),
     /// Generate an additive square wave from a frequency and number of harmonics
-    (hsquare, |n, freqs| {
-        freqs.val.distribute(|freq| {
-            harmonic_wave_node("hsquare", n.val.clone(), freq, harmonic_square_wave)
-        })
-    }),
+    (hsquare, |n, freqs| freqs.val.distribute(|freq| {
+        harmonic_wave_node("hsquare", n.val.clone(), freq, harmonic_square_wave)
+    })),
     /// Generate an additive saw wave from a frequency and number of harmonics
-    (hsaw, |n, freqs| {
-        freqs
-            .val
-            .distribute(|freq| harmonic_wave_node("hsaw", n.val.clone(), freq, harmonic_saw_wave))
-    }),
+    (hsaw, |n, freqs| freqs.val.distribute(|freq| {
+        harmonic_wave_node("hsaw", n.val.clone(), freq, harmonic_saw_wave)
+    })),
     /// Generate an additive triangle wave from a frequency and number of harmonics
-    (htri, |n, freqs| {
-        freqs.val.distribute(|freq| {
-            harmonic_wave_node("htriangle", n.val.clone(), freq, harmonic_triangle_wave)
-        })
-    }),
+    (htri, |n, freqs| freqs.val.distribute(|freq| {
+        harmonic_wave_node("htriangle", n.val.clone(), freq, harmonic_triangle_wave)
+    })),
     /// Generate kick drum sound
     (
         kick,
@@ -234,19 +226,13 @@ make_builtin_fns!(
         max
     }),
     /// Raise a value to a power
-    (pow, sp, |a, b| a.val.bin_scalar_op(
-        b.val,
-        "pow",
-        sp,
-        f64::powf
-    )?),
+    (pow, sp, |a, b| {
+        a.val.bin_scalar_op(b.val, "pow", sp, f64::powf)?
+    }),
     /// Get the logarithm of a value
-    (log, sp, |a, b| a.val.bin_scalar_op(
-        b.val,
-        "log",
-        sp,
-        f64::log
-    )?),
+    (log, sp, |a, b| {
+        a.val.bin_scalar_op(b.val, "log", sp, f64::log)?
+    }),
     /// Negate a value
     (neg, |x| x.val.un_scalar_op("neg", x.span, |x| -x)?),
     /// Map a value from the range [-1, 1] to [0, 1]
@@ -260,65 +246,61 @@ make_builtin_fns!(
     /// Get e raised to a value
     (exp, |x| x.val.un_scalar_op("exp", x.span, f64::exp)?),
     /// Pan
-    (pan, |pan, value| {
-        state_node(
-            "pan",
-            (pan.val.into_node(), value.val.into_node()),
-            |(pan, value), env| {
-                let pan = pan.sample(env).average();
-                let value = value.sample(env).average();
-                Stereo::pan(value, pan)
-            },
-        )
-    }),
+    (pan, |pan, value| state_node(
+        "pan",
+        (pan.val.into_node(), value.val.into_node()),
+        |(pan, value), env| {
+            let pan = pan.sample(env).average();
+            let value = value.sample(env).average();
+            Stereo::pan(value, pan)
+        },
+    )),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
-    (perbeat, |n| {
-        state_node(
-            format!("(perbeat {n:?})"),
-            n.val.into_node(),
-            move |n, env| n.sample(env) * env.beat_freq(),
-        )
-    }),
+    (perbeat, |n| state_node(
+        format!("(perbeat {n:?})"),
+        n.val.into_node(),
+        move |n, env| n.sample(env) * env.beat_freq(),
+    )),
     /// Get the period that is an `n`th of a beat at the current tempo
-    (beat, |n| {
-        state_node(format!("(beat {n:?})"), n.val.into_node(), move |n, env| {
+    (beat, |n| state_node(
+        format!("(beat {n:?})"),
+        n.val.into_node(),
+        move |n, env| {
             let n = n.sample(env);
             if n.left == 0.0 || n.right == 0.0 {
                 Stereo::ZERO
             } else {
                 1.0 / env.beat_freq() / n
             }
-        })
-    }),
+        }
+    )),
     /// Get the period of `n` beats at the current tempo
-    (beats, |n| {
-        state_node(
-            format!("(beats {n:?})"),
-            n.val.into_node(),
-            move |n, env| n.sample(env) / env.beat_freq(),
-        )
-    }),
+    (beats, |n| state_node(
+        format!("(beats {n:?})"),
+        n.val.into_node(),
+        move |n, env| n.sample(env) / env.beat_freq(),
+    )),
     /// Alias for `sec (perbeat n) values`
-    (sperbeat, |n, values| {
-        let perbeat = state_node("perbeat", n.val.into_node(), move |n, env| {
+    (sperbeat, |n, values| section(
+        state_node("perbeat", n.val.into_node(), move |n, env| {
             n.sample(env) * env.beat_freq()
-        });
-        section(perbeat, values.val)?
-    }),
+        }),
+        values.val,
+    )?),
     /// Alias for `sec (beat n) values`
-    (sbeat, |n, values| {
-        let beat = state_node("beat", n.val.into_node(), move |n, env| {
+    (sbeat, |n, values| section(
+        state_node("beat", n.val.into_node(), move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
-        });
-        section(beat, values.val)?
-    }),
+        }),
+        values.val
+    )?),
     /// Alias for `sec (beats n) values`
-    (sbeats, |n, values| {
-        let beats = state_node("beats", n.val.into_node(), move |n, env| {
+    (sbeats, |n, values| section(
+        state_node("beats", n.val.into_node(), move |n, env| {
             n.sample(env) / env.beat_freq()
-        });
-        section(beats, values.val)?
-    }),
+        }),
+        values.val
+    )?),
     /// Create looping sections from some values
     ///
     /// Each value will be played for the `period`.
@@ -349,19 +331,17 @@ make_builtin_fns!(
         Value::List(selected)
     }),
     /// Evaluate the `value` with the `offset` added to the current time
-    (offset, |offset, value| {
-        state_node(
-            "offset",
-            (offset.val.into_node(), value.val.into_node()),
-            |(offset, value), env| {
-                let offset = offset.sample(env).average();
-                env.time += offset;
-                let value = value.sample(env);
-                env.time -= offset;
-                value
-            },
-        )
-    }),
+    (offset, |offset, value| state_node(
+        "offset",
+        (offset.val.into_node(), value.val.into_node()),
+        |(offset, value), env| {
+            let offset = offset.sample(env).average();
+            env.time += offset;
+            let value = value.sample(env);
+            env.time -= offset;
+            value
+        },
+    )),
     /// Apply a low-pass filter to a `value` with the given `cutoff` frequency
     (lowpass, |cutoff, value| NodeBox::new(LowPass::new(
         cutoff.val.into_node(),
@@ -440,22 +420,20 @@ make_builtin_fns!(
     }),
     /// Bind a function to some arguments
     (bind, |f, [args]| Value::Bind(f.into(), args)),
-    (timed, |pairs| {
-        let pairs = pairs.val.expect_pairs("timed", pairs.span)?;
-        timed_node(
-            pairs
-                .into_iter()
-                .map(|(value, dur)| (value.into_node(), dur.into_node())),
-        )
-    }),
-    (auto, |pairs| {
-        let pairs = pairs.val.expect_pairs("auto", pairs.span)?;
-        automated_node(
-            pairs
-                .into_iter()
-                .map(|(value, dur)| (value.into_node(), dur.into_node())),
-        )
-    }),
+    (timed, |pairs| timed_node(
+        pairs
+            .val
+            .expect_pairs("timed", pairs.span)?
+            .into_iter()
+            .map(|(value, dur)| (value.into_node(), dur.into_node())),
+    )),
+    (auto, |pairs| automated_node(
+        pairs
+            .val
+            .expect_pairs("auto", pairs.span)?
+            .into_iter()
+            .map(|(value, dur)| (value.into_node(), dur.into_node())),
+    )),
 );
 
 fn section(period: impl Node + Clone, values: Value) -> CompileResult<Value> {
