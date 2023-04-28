@@ -150,13 +150,13 @@ make_builtin_fns!(
     /// Named alias for `>=`
     (ge, span, |a, b| a.val.ge(b.val, span)?),
     /// Generate a sine wave from a frequency
-    (sin, |freqs| freqs.val.distribute(|freq| Wave3::new(
+    (sine, |freqs| freqs.val.distribute(|freq| wave_node(
         "sine",
         freq,
         |time| { (time * TAU).sin() }
     ))),
     /// Generate a square wave from a frequency
-    (square, |freqs| freqs.val.distribute(|freq| Wave3::new(
+    (square, |freqs| freqs.val.distribute(|freq| wave_node(
         "square",
         freq,
         square_wave
@@ -164,32 +164,29 @@ make_builtin_fns!(
     /// Generate a saw wave from a frequency
     (saw, |freqs| freqs
         .val
-        .distribute(|freq| Wave3::new("saw", freq, saw_wave))),
+        .distribute(|freq| wave_node("saw", freq, saw_wave))),
     /// Generate a triangle wave from a frequency
-    (tri, |freqs| freqs.val.distribute(|freq| Wave3::new(
+    (tri, |freqs| freqs.val.distribute(|freq| wave_node(
         "triangle",
         freq,
         triangle_wave
     ))),
     /// Generate an additive square wave from a frequency and number of harmonics
     (hsquare, |n, freqs| {
-        let n = n.val.expect_number("n", n.span)? as usize;
-        freqs
-            .val
-            .distribute(|freq| Wave3::new("hsquare", freq, move |time| true_square_wave(time, n)))
+        freqs.val.distribute(|freq| {
+            harmonic_wave_node("hsquare", n.val.clone(), freq, harmonic_square_wave)
+        })
     }),
     /// Generate an additive saw wave from a frequency and number of harmonics
     (hsaw, |n, freqs| {
-        let n = n.val.expect_number("n", n.span)? as usize;
         freqs
             .val
-            .distribute(|freq| Wave3::new("hsaw", freq, move |time| true_saw_wave(time, n)))
+            .distribute(|freq| harmonic_wave_node("hsaw", n.val.clone(), freq, harmonic_saw_wave))
     }),
     /// Generate an additive triangle wave from a frequency and number of harmonics
     (htri, |n, freqs| {
-        let n = n.val.expect_number("n", n.span)? as usize;
         freqs.val.distribute(|freq| {
-            Wave3::new("htriangle", freq, move |time| true_triangle_wave(time, n))
+            harmonic_wave_node("htriangle", n.val.clone(), freq, harmonic_triangle_wave)
         })
     }),
     /// Generate kick drum sound

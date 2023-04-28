@@ -1,4 +1,4 @@
-lowpass (1000 pos.sin.perbeat.sbeat 1 |2 4) (square (sbeats 4 |C2 A1))
+lowpass (1000 pos.sine.perbeat.sbeat 1 |2 4) (square (sbeats 4 |C2 A1))
 kick . perbeat 1
 noise sbeat 4 x01
 time > beats 16 * max 0 . saw . perbeat 8 * noise sbeat 8 x5555

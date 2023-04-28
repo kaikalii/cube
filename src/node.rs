@@ -2,7 +2,6 @@ use std::{
     collections::VecDeque,
     f64::consts::{PI, TAU},
     fmt,
-    sync::Arc,
 };
 
 use hodaun::{Shared, Source, Stereo};
@@ -66,49 +65,53 @@ impl Node for NodeBox {
     }
 }
 
-#[derive(Clone)]
-pub struct Wave3 {
-    pub name: &'static str,
-    pub one_hz: Arc<dyn Fn(f64) -> f64 + Send + Sync>,
-    pub freq: NodeBox,
-    pub time: f64,
-}
-
-impl fmt::Debug for Wave3 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} hz {} wave", self.freq, self.name)
-    }
-}
-
-impl Wave3 {
-    pub fn new(
-        name: &'static str,
-        freq: impl Node,
-        one_hz: impl Fn(f64) -> f64 + Send + Sync + 'static,
-    ) -> Self {
-        Self {
-            name,
-            one_hz: Arc::new(one_hz),
-            freq: freq.boxed(),
-            time: 0.0,
-        }
-    }
-}
-
-impl Node for Wave3 {
-    fn boxed(&self) -> NodeBox {
-        NodeBox::new(self.clone())
-    }
-    fn sample(&mut self, env: &mut Env) -> Stereo {
-        let freq = self.freq.sample(env).average();
-        if self.time == 0.0 && freq != 0.0 {
-            self.time = env.time * freq;
+pub fn wave_node<N, F>(
+    name: impl Into<String>,
+    freq: N,
+    one_hz: F,
+) -> GenericNode<impl NodeFn<(f64, N)>, (f64, N)>
+where
+    F: Fn(f64) -> f64 + Clone + Send + Sync + 'static,
+    N: Node,
+{
+    state_node(name, (0.0, freq), move |(time, freq), env| {
+        let freq = freq.sample(env).average();
+        if *time == 0.0 && freq != 0.0 {
+            *time = env.time * freq;
         }
         let mut sample = Stereo::ZERO;
-        sample += (self.one_hz)(self.time);
-        self.time += env.dir * (freq / env.sample_rate);
+        sample += one_hz(*time);
+        *time += env.dir * (freq / env.sample_rate);
         sample
-    }
+    })
+}
+
+pub fn harmonic_wave_node<H, N, F>(
+    name: impl Into<String>,
+    harmonics: H,
+    freq: N,
+    one_hz: F,
+) -> GenericNode<impl NodeFn<(f64, H, N)>, (f64, H, N)>
+where
+    H: Node,
+    N: Node,
+    F: Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
+{
+    state_node(
+        name,
+        (0.0, harmonics, freq),
+        move |(time, harmonics, freq), env| {
+            let freq = freq.sample(env).average();
+            if *time == 0.0 && freq != 0.0 {
+                *time = env.time * freq;
+            }
+            let harmonics = harmonics.sample(env).average().abs();
+            let mut sample = Stereo::ZERO;
+            sample += one_hz(*time, harmonics);
+            *time += env.dir * (freq / env.sample_rate);
+            sample
+        },
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -255,12 +258,13 @@ pub fn square_wave(time: f64) -> f64 {
     }
 }
 
-pub fn true_square_wave(time: f64, n: usize) -> f64 {
+pub fn harmonic_square_wave(time: f64, mut harmonics: f64) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
-    for i in 1..=n {
+    for i in 1..=harmonics.ceil() as usize {
         let n = (i as f64).mul_add(2.0, -1.0);
-        sum += (n * k).sin() / n;
+        sum += harmonics.min(1.0) * (n * k).sin() / n;
+        harmonics -= 1.0;
     }
     sum
 }
@@ -269,12 +273,13 @@ pub fn saw_wave(time: f64) -> f64 {
     1.0 - modulus(time, 1.0) * 2.0
 }
 
-pub fn true_saw_wave(time: f64, n: usize) -> f64 {
+pub fn harmonic_saw_wave(time: f64, mut harmonics: f64) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
-    for i in 1..=n {
+    for i in 1..=harmonics.ceil() as usize {
         let n = i as f64;
-        sum += (n * k).sin() / n;
+        sum += harmonics.min(1.0) * (n * k).sin() / n;
+        harmonics -= 1.0;
     }
     sum * 2.0 / PI
 }
@@ -283,13 +288,14 @@ pub fn triangle_wave(time: f64) -> f64 {
     4.0 * (time - (time + 0.5).floor()).abs() - 1.0
 }
 
-pub fn true_triangle_wave(time: f64, n: usize) -> f64 {
+pub fn harmonic_triangle_wave(time: f64, mut harmonics: f64) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
-    for i in 1..=n {
+    for i in 1..=harmonics.ceil() as usize {
         let sign = if i % 2 == 0 { -1.0 } else { 1.0 };
         let n = (i as f64).mul_add(2.0, -1.0);
-        sum += (n * k).sin() / n.powi(2) * sign;
+        sum += harmonics.min(1.0) * (n * k).sin() / n.powi(2) * sign;
+        harmonics -= 1.0;
     }
     sum * 8.0 / PI.powi(2)
 }

@@ -93,11 +93,13 @@ impl Value {
     }
     pub fn distribute<F, V>(self, f: F) -> Self
     where
-        F: Fn(Self) -> V + Copy,
+        F: Fn(Self) -> V + Clone,
         V: Into<Self>,
     {
         match self {
-            Value::List(list) => Value::List(list.into_iter().map(|v| v.distribute(f)).collect()),
+            Value::List(list) => {
+                Value::List(list.into_iter().map(|v| v.distribute(f.clone())).collect())
+            }
             value => f(value).into(),
         }
     }
@@ -239,12 +241,6 @@ impl From<f64> for Value {
 impl From<NodeBox> for Value {
     fn from(node: NodeBox) -> Self {
         Value::Node(node)
-    }
-}
-
-impl From<Wave3> for Value {
-    fn from(wave: Wave3) -> Self {
-        Value::Node(NodeBox::new(wave))
     }
 }
 
