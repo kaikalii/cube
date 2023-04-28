@@ -126,6 +126,27 @@ where
     )
 }
 
+pub fn timed_node(
+    pairs: impl IntoIterator<Item = (NodeBox, NodeBox)>,
+) -> GenericNode<impl NodeFn<Vec<(NodeBox, NodeBox)>>, Vec<(NodeBox, NodeBox)>> {
+    let pairs: Vec<_> = pairs.into_iter().collect();
+    state_node("timed", pairs, move |pairs, env| {
+        let durations: Vec<f64> = pairs
+            .iter_mut()
+            .map(|(_, dur)| dur.sample(env).average())
+            .collect();
+        let duration: f64 = durations.iter().sum();
+        let mut time = env.time % duration;
+        for ((node, _), dur) in pairs.iter_mut().zip(durations) {
+            if time < dur {
+                return node.sample(env);
+            }
+            time -= dur;
+        }
+        unreachable!()
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct LowPass {
     pub cutoff: NodeBox,

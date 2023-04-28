@@ -265,21 +265,25 @@ make_builtin_fns!(
     }),
     /// Get the frequency of a beat subdivided into `n` parts at the current tempo
     (perbeat, |n| {
-        state_node("perbeat", n.val.into_node(), move |n, env| {
-            n.sample(env) * env.beat_freq()
-        })
+        state_node(
+            format!("(perbeat {n:?})"),
+            n.val.into_node(),
+            move |n, env| n.sample(env) * env.beat_freq(),
+        )
     }),
     /// Get the period that is an `n`th of a beat at the current tempo
     (beat, |n| {
-        state_node("beat", n.val.into_node(), move |n, env| {
+        state_node(format!("(beat {n:?})"), n.val.into_node(), move |n, env| {
             1.0 / env.beat_freq() / n.sample(env)
         })
     }),
     /// Get the period of `n` beats at the current tempo
     (beats, |n| {
-        state_node("beats", n.val.into_node(), move |n, env| {
-            n.sample(env) / env.beat_freq()
-        })
+        state_node(
+            format!("(beats {n:?})"),
+            n.val.into_node(),
+            move |n, env| n.sample(env) / env.beat_freq(),
+        )
     }),
     /// Alias for `sec (perbeat n) values`
     (sperbeat, |n, values| {
@@ -423,6 +427,14 @@ make_builtin_fns!(
     }),
     /// Bind a function to some arguments
     (bind, |f, [args]| Value::Bind(f.into(), args)),
+    (timed, |pairs| {
+        let pairs = pairs.val.expect_pairs("timed pairs", pairs.span)?;
+        timed_node(
+            pairs
+                .into_iter()
+                .map(|(value, dur)| (value.into_node(), dur.into_node())),
+        )
+    }),
 );
 
 fn section(period: impl Node + Clone, values: Value) -> CompileResult<Value> {

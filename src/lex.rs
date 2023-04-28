@@ -97,6 +97,8 @@ pub enum Token {
     CloseParen,
     OpenBracket,
     CloseBracket,
+    OpenCurly,
+    CloseCurly,
     Newline,
 }
 
@@ -155,6 +157,8 @@ impl Lexer {
                     ')' => self.end(start, Token::CloseParen),
                     '[' => self.end(start, Token::OpenBracket),
                     ']' => self.end(start, Token::CloseBracket),
+                    '{' => self.end(start, Token::OpenCurly),
+                    '}' => self.end(start, Token::CloseCurly),
                     '\n' => self.end(start, Token::Newline),
                     '.' => self.end(start, Token::Period),
                     '~' => self.end(start, Token::Tilde),

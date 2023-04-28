@@ -71,14 +71,31 @@ impl Value {
     pub fn expect_natural(&self, name: &'static str, span: Span) -> CompileResult<usize> {
         match self {
             Value::Number(n) if *n >= 0.0 && n.fract() == 0.0 => Ok(*n as usize),
-            _ => Err(span.sp(CompileError::ExpectedNatural(name))),
+            val => Err(span.sp(CompileError::ExpectedNatural(name, val.type_name()))),
         }
     }
     pub fn expect_number(&self, name: &'static str, span: Span) -> CompileResult<f64> {
         match self {
             Value::Number(n) => Ok(*n),
-            _ => Err(span.sp(CompileError::ExpectedNumber(name))),
+            val => Err(span.sp(CompileError::ExpectedNumber(name, val.type_name()))),
         }
+    }
+    pub fn expect_pairs(
+        self,
+        name: &'static str,
+        span: Span,
+    ) -> CompileResult<Vec<(Value, Value)>> {
+        let list = self.into_list();
+        let mut pairs = Vec::with_capacity(list.len());
+        for item in list {
+            let item_type_name = item.type_name();
+            let item = item.into_list();
+            match <[_; 2]>::try_from(item) {
+                Ok([a, b]) => pairs.push((a, b)),
+                _ => return Err(span.sp(CompileError::ExpectedPairs(name, item_type_name))),
+            }
+        }
+        Ok(pairs)
     }
     pub fn distribute<F, V>(self, f: F) -> Self
     where

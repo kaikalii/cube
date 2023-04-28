@@ -34,8 +34,9 @@ pub enum CompileError {
         name: String,
         found: usize,
     },
-    ExpectedNatural(&'static str),
-    ExpectedNumber(&'static str),
+    ExpectedNatural(&'static str, &'static str),
+    ExpectedNumber(&'static str, &'static str),
+    ExpectedPairs(&'static str, &'static str),
     IndexOutOfBounds {
         index: usize,
         len: usize,
@@ -62,10 +63,21 @@ impl fmt::Display for CompileError {
             CompileError::WrongNumberOfArguments { name, found } => {
                 write!(f, "No variant of {name} takes {found} arguments")
             }
-            CompileError::ExpectedNatural(name) => {
-                write!(f, "Expected {name} to be a natural number")
+            CompileError::ExpectedNatural(expected, found) => {
+                write!(
+                    f,
+                    "Expected {expected} to be a natural number, but it is {found}"
+                )
             }
-            CompileError::ExpectedNumber(name) => write!(f, "Expected {name} to be a number"),
+            CompileError::ExpectedPairs(expected, found) => {
+                write!(
+                    f,
+                    "Expected {expected} to be a list of pairs, but it is {found}"
+                )
+            }
+            CompileError::ExpectedNumber(expected, found) => {
+                write!(f, "Expected {expected} to be a number, but it is {found}")
+            }
             CompileError::IndexOutOfBounds { index, len } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
@@ -161,12 +173,13 @@ impl Compiler {
             Span::default()
         }
     }
-    fn expect(&mut self, token: impl Into<Token>, expectation: &'static str) -> CompileResult {
-        if self.exact(token.into()).is_some() {
-            Ok(())
-        } else {
-            Err(self.expected(expectation))
-        }
+    fn expect(
+        &mut self,
+        token: impl Into<Token>,
+        expectation: &'static str,
+    ) -> CompileResult<Span> {
+        self.exact(token.into())
+            .ok_or_else(|| self.expected(expectation))
     }
     fn expected(&self, expectation: &'static str) -> Sp<CompileError> {
         self.last_span().sp(CompileError::Expected(expectation))
@@ -259,7 +272,7 @@ impl Compiler {
         Ok(Some(left))
     }
     fn call(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        let Some(term) = self.bracket_list()? else {
+        let Some(term) = self.term()? else {
             return Ok(None);
         };
         let args = self.args()?;
@@ -273,16 +286,25 @@ impl Compiler {
         Ok(args)
     }
     fn bracket_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
-        if let Some(span) = self.exact(Token::OpenBracket) {
+        if let Some(start) = self.exact(Token::OpenBracket) {
             self.depth += 1;
-            let start = span;
-            let mut end = span;
             let mut items = Vec::new();
             while let Some(item) = self.bar_list()? {
                 items.push(item.val);
-                end = item.span;
             }
-            self.expect(Token::CloseBracket, "`]`")?;
+            let end = self.expect(Token::CloseBracket, "`]`")?;
+            self.depth -= 1;
+            Ok(Some(start.union(end).sp(Value::List(items))))
+        } else if let Some(start) = self.exact(Token::OpenCurly) {
+            self.depth += 1;
+            let length_selector = self.term()?.ok_or_else(|| self.expected("expression"))?;
+            let mut items = Vec::new();
+            while let Some(key) = self.bar_list()? {
+                let value = self.term()?.ok_or_else(|| self.expected("expression"))?;
+                let value = call(length_selector.clone(), vec![value])?;
+                items.push(Value::List(vec![key.val, value.val]));
+            }
+            let end = self.expect(Token::CloseCurly, "`}`")?;
             self.depth -= 1;
             Ok(Some(start.union(end).sp(Value::List(items))))
         } else {

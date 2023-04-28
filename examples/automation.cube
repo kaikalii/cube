@@ -1,0 +1,6 @@
+sine . timed {
+    beat
+    C3 1
+    D 2
+    E 2
+}
