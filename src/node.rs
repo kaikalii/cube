@@ -4,7 +4,7 @@ use std::{
     fmt,
 };
 
-use hodaun::{Shared, Source, Stereo};
+use hodaun::{lerp, Shared, Source, Stereo};
 use rand::prelude::*;
 
 use crate::modulus;
@@ -133,7 +133,7 @@ pub fn timed_node(
     state_node("timed", pairs, move |pairs, env| {
         let durations: Vec<f64> = pairs
             .iter_mut()
-            .map(|(_, dur)| dur.sample(env).average())
+            .map(|(_, dur)| dur.sample(env).average().abs())
             .collect();
         let duration: f64 = durations.iter().sum();
         let mut time = env.time % duration;
@@ -144,6 +144,34 @@ pub fn timed_node(
             time -= dur;
         }
         unreachable!()
+    })
+}
+
+pub fn automated_node(
+    pairs: impl IntoIterator<Item = (NodeBox, NodeBox)>,
+) -> GenericNode<impl NodeFn<Vec<(NodeBox, NodeBox)>>, Vec<(NodeBox, NodeBox)>> {
+    let pairs: Vec<_> = pairs.into_iter().collect();
+    state_node("automated", pairs, move |pairs, env| {
+        let durations: Vec<f64> = pairs
+            .iter_mut()
+            .map(|(_, dur)| dur.sample(env).average().abs())
+            .collect();
+        let duration: f64 = durations.iter().sum();
+        let mut time = env.time % duration;
+        let mut index = 0;
+        let mut t = 0.0;
+        for (i, dur) in durations.into_iter().enumerate() {
+            if time < dur {
+                index = i;
+                t = time / dur;
+                break;
+            }
+            time -= dur;
+        }
+        let j = (index + 1) % pairs.len();
+        let a = pairs[index].0.sample(env);
+        let b = pairs[j].0.sample(env);
+        a.with(b, |a, b| lerp(a, b, t))
     })
 }
 

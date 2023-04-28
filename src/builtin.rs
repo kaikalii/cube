@@ -274,7 +274,12 @@ make_builtin_fns!(
     /// Get the period that is an `n`th of a beat at the current tempo
     (beat, |n| {
         state_node(format!("(beat {n:?})"), n.val.into_node(), move |n, env| {
-            1.0 / env.beat_freq() / n.sample(env)
+            let n = n.sample(env);
+            if n.left == 0.0 || n.right == 0.0 {
+                Stereo::ZERO
+            } else {
+                1.0 / env.beat_freq() / n
+            }
         })
     }),
     /// Get the period of `n` beats at the current tempo
@@ -428,8 +433,16 @@ make_builtin_fns!(
     /// Bind a function to some arguments
     (bind, |f, [args]| Value::Bind(f.into(), args)),
     (timed, |pairs| {
-        let pairs = pairs.val.expect_pairs("timed pairs", pairs.span)?;
+        let pairs = pairs.val.expect_pairs("timed", pairs.span)?;
         timed_node(
+            pairs
+                .into_iter()
+                .map(|(value, dur)| (value.into_node(), dur.into_node())),
+        )
+    }),
+    (auto, |pairs| {
+        let pairs = pairs.val.expect_pairs("auto", pairs.span)?;
+        automated_node(
             pairs
                 .into_iter()
                 .map(|(value, dur)| (value.into_node(), dur.into_node())),

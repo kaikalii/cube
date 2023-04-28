@@ -299,7 +299,7 @@ impl Compiler {
             self.depth += 1;
             let length_selector = self.term()?.ok_or_else(|| self.expected("expression"))?;
             let mut items = Vec::new();
-            while let Some(key) = self.bar_list()? {
+            while let Some(key) = self.bracket_list()? {
                 let value = self.term()?.ok_or_else(|| self.expected("expression"))?;
                 let value = call(length_selector.clone(), vec![value])?;
                 items.push(Value::List(vec![key.val, value.val]));

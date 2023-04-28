@@ -1,6 +1,10 @@
-sine . timed {
-    beat
-    C3 1
-    D 2
-    E 2
+kick . perbeat 1
+(lowpass 1000 . square C2) auto {
+    beats
+    1 0.99
+    0 0.01
+    1 0.49
+    0 0.01
+    1 0.49
+    0 0.01
 }
