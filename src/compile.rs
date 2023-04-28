@@ -89,6 +89,7 @@ pub fn compile(input: &str) -> CompileResult<Compiled> {
         last_octave: 3,
         last_val: 0.0.into(),
         outputs: Vec::new(),
+        depth: 0,
     };
     while compiler.exact(Token::Newline).is_some() {}
     while compiler.item()? {
@@ -132,6 +133,7 @@ struct Compiler {
     last_octave: Octave,
     last_val: Value,
     outputs: Vec<NodeBox>,
+    depth: usize,
 }
 
 struct Scope {
@@ -140,13 +142,15 @@ struct Scope {
 
 impl Compiler {
     fn next_token_map<T>(&mut self, f: impl FnOnce(Token) -> Option<T>) -> Option<Sp<T>> {
-        let token = self
-            .tokens
-            .get(self.curr)
-            .cloned()
-            .and_then(|sp| f(sp.val).map(|val| sp.span.sp(val)))?;
-        self.curr += 1;
-        Some(token)
+        let token = self.tokens.get(self.curr)?;
+        if self.depth > 0 && matches!(token.val, Token::Newline) {
+            self.curr += 1;
+            self.next_token_map(f)
+        } else {
+            let token = f(token.val.clone()).map(|val| token.span.sp(val))?;
+            self.curr += 1;
+            Some(token)
+        }
     }
     fn exact(&mut self, token: impl Into<Token>) -> Option<Span> {
         self.next_token_map(|t| if t == token.into() { Some(()) } else { None })
@@ -284,6 +288,7 @@ impl Compiler {
     }
     fn bracket_list(&mut self) -> CompileResult<Option<Sp<Value>>> {
         if let Some(span) = self.exact(Token::OpenBracket) {
+            self.depth += 1;
             let start = span;
             let mut end = span;
             let mut items = Vec::new();
@@ -292,6 +297,7 @@ impl Compiler {
                 end = item.span;
             }
             self.expect(Token::CloseBracket, "`]`")?;
+            self.depth -= 1;
             Ok(Some(start.union(end).sp(Value::List(items))))
         } else {
             self.bar_list()
@@ -334,8 +340,10 @@ impl Compiler {
         } else if let Some(num) = self.number()? {
             num.map(Value::Number)
         } else if self.exact(Token::OpenParen).is_some() {
+            self.depth += 1;
             let res = self.expr()?.ok_or_else(|| self.expected("expression"))?;
             self.expect(Token::CloseParen, "`)`")?;
+            self.depth -= 1;
             res
         } else if let Some(span) = self.exact(Token::Tilde) {
             span.sp(self.last_val.clone())
