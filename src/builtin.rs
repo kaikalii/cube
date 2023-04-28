@@ -38,16 +38,12 @@ pub fn builtin_constant(name: &str) -> Option<Value> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ArgCount {
     pub min: usize,
-    pub variadic: bool,
+    pub max: Option<usize>,
 }
 
 impl ArgCount {
     pub fn matches(&self, n: usize) -> bool {
-        if self.variadic {
-            n >= self.min
-        } else {
-            n == self.min
-        }
+        self.min <= n && self.max.map_or(true, |max| n <= max)
     }
 }
 
@@ -70,10 +66,11 @@ macro_rules! make_builtin_fns {
             let mut map = BuiltinFnMap::new();
             $(
                 let mut min = 0;
-                let mut variadic = false;
+                let mut max = Some(0);
                 $(
                     stringify!($arg);
                     min += 1;
+                    *max.as_mut().unwrap() += 1;
                     $(
                         stringify!($default);
                         min -= 1;
@@ -81,9 +78,9 @@ macro_rules! make_builtin_fns {
                 )*
                 $(
                     stringify!($varargs);
-                    variadic = true;
+                    max = None;
                 )*
-                let args = ArgCount { min, variadic };
+                let args = ArgCount { min, max };
                 map.insert(stringify!($name).into(), (args, Box::new(|args: Vec<Sp<Value>>, _span: Span| {
                     let mut args = args.into_iter();
                     $(let mut $arg = args.next().unwrap_or_else(|| {

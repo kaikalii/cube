@@ -23,9 +23,6 @@ fn main() {
 
     let compile = move |path: &Path| {
         let input = fs::read_to_string(path).unwrap_or_default();
-        if input.trim().is_empty() {
-            return;
-        }
         match compile::compile(&input) {
             Ok(compiled) => _ = send.send(compiled),
             Err(e) => println!("{e}"),
