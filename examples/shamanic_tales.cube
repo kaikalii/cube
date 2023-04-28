@@ -3,4 +3,4 @@ time > beats 32 * kick (perbeat 1)
 noise sbeat 4 x01
 0.3 tri Ab4 * sbeat 4 x0050
 baseline_notes = sbeat 4 . sel |0~~ 1 0~ 2 0 |Ab1 Gb2 Ab2
-time > beats 16 * max 0 (0.3 + 0.7 saw . perbeat 4) * hsaw 20 baseline_notes
+time > beats 16 * max 0 . (pos . curve 2 . perbeat 4) hsaw 20 baseline_notes

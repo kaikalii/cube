@@ -171,6 +171,14 @@ make_builtin_fns!(
         freq,
         triangle_wave
     ))),
+    /// A curved saw wave
+    ///
+    /// `curve 1` is equivalent to `saw`
+    (curve, |falloff, freqs| {
+        freqs
+            .val
+            .distribute(|freq| harmonic_wave_node("curve", falloff.val.clone(), freq, curve_wave))
+    }),
     /// Generate an additive square wave from a frequency and number of harmonics
     (hsquare, |n, freqs| {
         freqs.val.distribute(|freq| {

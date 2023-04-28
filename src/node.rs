@@ -334,6 +334,10 @@ pub fn saw_wave(time: f64) -> f64 {
     1.0 - modulus(time, 1.0) * 2.0
 }
 
+pub fn curve_wave(time: f64, falloff: f64) -> f64 {
+    1.0 - modulus(time, 1.0).powf(1.0 / falloff) * 2.0
+}
+
 pub fn harmonic_saw_wave(time: f64, mut harmonics: f64) -> f64 {
     let mut sum = 0.0;
     let k = time * TAU;
