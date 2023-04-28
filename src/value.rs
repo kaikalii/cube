@@ -32,38 +32,27 @@ impl fmt::Debug for Value {
     }
 }
 
-impl Node for Value {
-    fn boxed(&self) -> NodeBox {
+impl IntoNode for Value {
+    type Node = NodeBox;
+    fn into_node(self) -> NodeBox {
         match self {
-            Value::Number(n) => NodeBox::new(*n),
-            Value::Node(node) => node.clone(),
+            Value::Number(n) => NodeBox::new(n),
+            Value::Node(node) => node,
             Value::BuiltinFn(_) | Value::Bind(..) => NodeBox::new(0.0),
-            Value::List(items) => NodeBox::new(state_node("list", items.clone(), |items, env| {
-                items
-                    .iter_mut()
-                    .fold(Stereo::ZERO, |acc, item| acc + item.sample(env))
-            })),
-        }
-    }
-    fn sample(&mut self, env: &mut Env) -> Stereo {
-        match self {
-            Value::Number(n) => Stereo::both(*n),
-            Value::Node(node) => node.sample(env),
-            Value::BuiltinFn(_) | Value::Bind(..) => Stereo::ZERO,
-            Value::List(items) => items
-                .iter_mut()
-                .fold(Stereo::ZERO, |acc, item| acc + item.sample(env)),
+            Value::List(items) => NodeBox::new(state_node(
+                "list",
+                items.into_iter().map(Value::into_node).collect::<Vec<_>>(),
+                |items, env| {
+                    items
+                        .iter_mut()
+                        .fold(Stereo::ZERO, |acc, item| acc + item.sample(env))
+                },
+            )),
         }
     }
 }
 
 impl Value {
-    pub fn into_node(self) -> NodeBox {
-        match self {
-            Value::Node(node) => node,
-            _ => self.boxed(),
-        }
-    }
     pub fn type_name(&self) -> &'static str {
         match self {
             Value::Number(_) => "number",

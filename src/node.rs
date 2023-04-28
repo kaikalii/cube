@@ -36,6 +36,18 @@ impl Node for f64 {
     }
 }
 
+pub trait IntoNode {
+    type Node: Node;
+    fn into_node(self) -> Self::Node;
+}
+
+impl<N: Node> IntoNode for N {
+    type Node = N;
+    fn into_node(self) -> Self::Node {
+        self
+    }
+}
+
 pub struct NodeBox(Box<dyn Node>);
 
 impl fmt::Debug for NodeBox {
@@ -69,12 +81,12 @@ pub fn wave_node<N, F>(
     name: impl Into<String>,
     freq: N,
     one_hz: F,
-) -> GenericNode<impl NodeFn<(f64, N)>, (f64, N)>
+) -> GenericNode<impl NodeFn<(f64, N::Node)>, (f64, N::Node)>
 where
     F: Fn(f64) -> f64 + Clone + Send + Sync + 'static,
-    N: Node,
+    N: IntoNode,
 {
-    state_node(name, (0.0, freq), move |(time, freq), env| {
+    state_node(name, (0.0, freq.into_node()), move |(time, freq), env| {
         let freq = freq.sample(env).average();
         if *time == 0.0 && freq != 0.0 {
             *time = env.time * freq;
@@ -91,15 +103,15 @@ pub fn harmonic_wave_node<H, N, F>(
     harmonics: H,
     freq: N,
     one_hz: F,
-) -> GenericNode<impl NodeFn<(f64, H, N)>, (f64, H, N)>
+) -> GenericNode<impl NodeFn<(f64, H::Node, N::Node)>, (f64, H::Node, N::Node)>
 where
-    H: Node,
-    N: Node,
+    H: IntoNode,
+    N: IntoNode,
     F: Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static,
 {
     state_node(
         name,
-        (0.0, harmonics, freq),
+        (0.0, harmonics.into_node(), freq.into_node()),
         move |(time, harmonics, freq), env| {
             let freq = freq.sample(env).average();
             if *time == 0.0 && freq != 0.0 {
