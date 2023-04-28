@@ -207,7 +207,9 @@ impl Compiler {
             return Ok(false);
         }
         let value = self.expr()?.ok_or_else(|| self.expected("expression"))?;
-        self.bindings.insert(name.val, value);
+        if name.val != "_" {
+            self.bindings.insert(name.val, value);
+        }
         Ok(true)
     }
     fn expr(&mut self) -> CompileResult<Option<Sp<Value>>> {
