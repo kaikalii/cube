@@ -91,15 +91,12 @@ pub enum Token {
     Period,
     Tilde,
     Colon,
-    DoubleColon,
-    SemiColon,
     Bar,
     Equals,
     OpenParen,
     CloseParen,
     OpenBracket,
     CloseBracket,
-    Comma,
     Newline,
 }
 
@@ -154,7 +151,6 @@ impl Lexer {
             if let Some(c) = self.next_char() {
                 tokens.push(match c {
                     '=' => self.end(start, Token::Equals),
-                    ',' => self.end(start, Token::Comma),
                     '(' => self.end(start, Token::OpenParen),
                     ')' => self.end(start, Token::CloseParen),
                     '[' => self.end(start, Token::OpenBracket),
@@ -162,9 +158,7 @@ impl Lexer {
                     '\n' => self.end(start, Token::Newline),
                     '.' => self.end(start, Token::Period),
                     '~' => self.end(start, Token::Tilde),
-                    ':' if self.next_char_exact(':') => self.end(start, Token::DoubleColon),
                     ':' => self.end(start, Token::Colon),
-                    ';' => self.end(start, Token::SemiColon),
                     '|' => self.end(start, Token::Bar),
                     '+' => self.end(start, Token::BinOp(BinOp::Add)),
                     '*' => self.end(start, Token::BinOp(BinOp::Mul)),

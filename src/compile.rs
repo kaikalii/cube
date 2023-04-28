@@ -189,7 +189,7 @@ impl Compiler {
         let Some(name) = self.ident() else {
             return Ok(false);
         };
-        if self.expect(Token::Equals, "equals").is_err() {
+        if self.expect(Token::Equals, "`=`").is_err() {
             self.curr = start;
             return Ok(false);
         }
@@ -208,7 +208,7 @@ impl Compiler {
             Token::BinOp(op @ (BinOp::Add | BinOp::Sub)) => Some(op),
             _ => None,
         }) {
-            let right = self.md_expr()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.md_expr()?.ok_or_else(|| self.expected("expression"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Add => left.val.add(right.val, op.span)?,
@@ -227,7 +227,7 @@ impl Compiler {
             Token::BinOp(op @ (BinOp::Mul | BinOp::Div)) => Some(op),
             _ => None,
         }) {
-            let right = self.cmp_op()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.cmp_op()?.ok_or_else(|| self.expected("expression"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Mul => left.val.mul(right.val, op.span)?,
@@ -246,7 +246,7 @@ impl Compiler {
             Token::BinOp(op @ (BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)) => Some(op),
             _ => None,
         }) {
-            let right = self.call()?.ok_or_else(|| self.expected("term"))?;
+            let right = self.call()?.ok_or_else(|| self.expected("expression"))?;
             let span = left.span.union(right.span);
             left = span.sp(match op.val {
                 BinOp::Lt => left.val.lt(right.val, op.span)?,
