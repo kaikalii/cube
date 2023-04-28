@@ -1,4 +1,4 @@
-kick . perbeat 1
+kick . beat 1
 (lowpass 1000 . square C2) auto {
     beats
     1 0.99

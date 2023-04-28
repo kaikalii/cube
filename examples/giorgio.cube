@@ -1,4 +1,4 @@
-kick (perbeat 1)
+kick (beat 1)
 sbeats 64 xc * 0.3 noise sbeat 16 x1
 sbeats 64 xe * noise sbeat 4 x01
 riff = sel |1 0 3 0 2 0 3 4 0 1 3 0 2 0 3 0

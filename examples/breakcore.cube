@@ -1,5 +1,5 @@
 seq = atop (sbeats 16) . atop (sel x4) . lhook map sbeat
-pulse = kick (perbeat 4) * seq 4 |x1008 xff00
+pulse = kick (beat 4) * seq 4 |x1008 xff00
 hit = noise * max 0 . saw . perbeat 4 * seq 4 |x8421 x84f1
 hh = pan (sine 100) (0.3 noise * max 0 . saw . perbeat 8 * seq 8 |xd5555755 x000055ff)
 (pulse + hit + hh) * sbeats 16 xef

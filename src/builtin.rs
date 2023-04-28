@@ -59,8 +59,8 @@ macro_rules! make_builtin_fns {
             $($(#[default($default:expr)])? $arg:ident),*
             $($(,)?[$varargs:ident])?
             $(,)?
-        | $body:expr)),*
-    $(,)*) => {
+        | $body:expr)
+    ),* $(,)*) => {
         #[allow(unused_assignments, unreachable_code, unused_mut)]
         fn builtin_fns() -> BuiltinFnMap {
             let mut map = BuiltinFnMap::new();
@@ -189,15 +189,15 @@ make_builtin_fns!(
     /// Generate kick drum sound
     (
         kick,
-        |freq, #[default(40)] high, #[default(0.5)] falloff| state_node(
+        |period, #[default(40)] high, #[default(0.5)] falloff| state_node(
             "kick",
             (
-                freq.val.into_node(),
+                period.val.into_node(),
                 high.val.into_node(),
                 falloff.val.into_node(),
             ),
-            |(freq, high, falloff), env| {
-                let period = 1.0 / freq.sample(env);
+            |(period, high, falloff), env| {
+                let period = period.sample(env);
                 let high = high.sample(env);
                 let falloff = falloff.sample(env);
                 period.zip(high).with(falloff, |(period, high), falloff| {
