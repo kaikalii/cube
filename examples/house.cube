@@ -1,5 +1,7 @@
 time > beats 32 * kick . beat 1
 noise . max 0 . saw . perbeat 8 * sbeat 8 x5
 noise sbeat 4 x01
-notes = sbeats 4 |A1~~~~~ C2 D
-time > beats 16 * hsquare 20 notes * pos . hsaw 10 . perbeat 4 * sbeat 4 x9429
+notes = sbeats 4 |A1~~~ C2 D
+activations = sbeat 4 x9429
+envelope = pos . hsaw 10 . perbeat 4
+time > beats 16 * hsquare 20 notes * envelope activations
