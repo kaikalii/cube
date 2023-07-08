@@ -9,6 +9,7 @@ once_cell = "1"
 parking_lot = "0.12"
 
 [dependencies.hodaun]
+default-features = false
 features = ["notes", "output", "noise"]
 version = "0.3"
 
