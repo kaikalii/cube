@@ -258,9 +258,9 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hodaun"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfce4c9b50f5fe92b941575f4f9dc968dd4b7187e13515037be69f82cfd3cd3a"
+checksum = "f56af08e45322385bdfddf8d0ff4b855d7d4ded1c43817046c88494ffc2d95e2"
 dependencies = [
  "cpal",
  "hound",

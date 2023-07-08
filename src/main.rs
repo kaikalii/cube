@@ -11,13 +11,12 @@ use std::{
     sync::mpsc::channel,
 };
 
-use hodaun::{Maintainer, Mix, OutputDeviceMixer, Shared, Source, Stereo};
+use hodaun::{default_output, Maintainer, Shared, Source};
 use node::NodeSource;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 
 fn main() {
-    let mut output =
-        OutputDeviceMixer::<Stereo>::with_default_device().unwrap_or_else(|e| panic!("{e}"));
+    let output = default_output().unwrap_or_else(|e| panic!("{e}"));
 
     let (send, recv) = channel();
 
@@ -64,7 +63,6 @@ fn main() {
         }
         .maintained(&maintainer);
         output.add(source);
-        output.play().unwrap();
     }
 }
 
