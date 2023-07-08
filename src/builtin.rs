@@ -189,14 +189,14 @@ make_builtin_fns!(
     /// Generate kick drum sound
     (
         kick,
-        |period, #[default(40)] high, #[default(0.5)] falloff| state_node(
+        |period, #[default(0.4)] falloff, #[default(40)] high| state_node(
             "kick",
             (
                 period.val.into_node(),
-                high.val.into_node(),
                 falloff.val.into_node(),
+                high.val.into_node(),
             ),
-            |(period, high, falloff), env| {
+            |(period, falloff, high), env| {
                 let period = period.sample(env);
                 let high = high.sample(env);
                 let falloff = falloff.sample(env);
