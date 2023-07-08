@@ -1,3 +1,8 @@
-- commend interpreter code
-- parse code comments
-- add runtime commands
+- comment codebase
+- allow code comments
+- add runtime commands?
+- add more list manipulation functions
+  - take
+  - drop
+  - replicate
+- documentation
