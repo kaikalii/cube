@@ -277,6 +277,18 @@ make_builtin_fns!(
         n.val.into_node(),
         move |n, env| n.sample(env) / env.beat_freq(),
     )),
+    /// Create looping sections from some values
+    ///
+    /// Each value will be played for the `period`.
+    ///
+    /// ## Example
+    /// ```
+    /// 0.5 square . sec (beat 2) |C2~ D E F G
+    /// ```
+    (sec, |period, values| section(
+        period.val.into_node(),
+        values.val
+    )?),
     /// Alias for `sec (perbeat n) values`
     (sperbeat, |n, values| section(
         state_node("perbeat", n.val.into_node(), move |n, env| {
@@ -296,18 +308,6 @@ make_builtin_fns!(
         state_node("beats", n.val.into_node(), move |n, env| {
             n.sample(env) / env.beat_freq()
         }),
-        values.val
-    )?),
-    /// Create looping sections from some values
-    ///
-    /// Each value will be played for the `period`.
-    ///
-    /// ## Example
-    /// ```
-    /// square 110 * max 0 (saw (sec (beat 4) |2 8))
-    /// ```
-    (sec, |period, values| section(
-        period.val.into_node(),
         values.val
     )?),
     /// Select from `values` using `indices`

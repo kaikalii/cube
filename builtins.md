@@ -81,7 +81,7 @@ Generate an additive saw wave from a frequency and number of harmonics
 Generate an additive triangle wave from a frequency and number of harmonics
 
 # `kick`
-<code><b>kick</b> freq [high = 40] [falloff = 0.5]</code>
+<code><b>kick</b> period [falloff = 0.4] [high = 40]</code>
 
 Generate kick drum sound
 
@@ -150,6 +150,18 @@ Get the period that is an `n`th of a beat at the current tempo
 
 Get the period of `n` beats at the current tempo
 
+# `sec`
+<code><b>sec</b> period values</code>
+
+Create looping sections from some values
+
+Each value will be played for the `period`.
+
+## Example
+```
+0.5 square . sec (beat 2) |C2~ D E F G
+```
+
 # `sperbeat`
 <code><b>sperbeat</b> n values</code>
 
@@ -164,18 +176,6 @@ Alias for `sec (beat n) values`
 <code><b>sbeats</b> n values</code>
 
 Alias for `sec (beats n) values`
-
-# `sec`
-<code><b>sec</b> period values</code>
-
-Create looping sections from some values
-
-Each value will be played for the `period`.
-
-## Example
-```
-square 110 * max 0 (saw (sec (beat 4) |2 8))
-```
 
 # `sel`
 <code><b>sel</b> indices values</code>
