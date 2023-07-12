@@ -6,4 +6,4 @@ noise sbeat 4 x01
     (sbeat (sbeats 4 |1 2 1 4) |C4 B3 G E)
     (sbeat (sbeats 4 |4 1 2 1) |E3 G B C4)
 ]
-0.5 hsquare 50 .sbeats 4 |C2 D E G
+0.5 hsquare 50 . sbeats 4 |C2 D E G
